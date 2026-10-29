@@ -1,0 +1,50 @@
+<idea-plugin>
+    <id>com.cst3492.ta</id>
+    <name>CST3492 TA</name>
+    <vendor>cst3492-groupB</vendor>
+    <description><![CDATA[
+        Course teaching assistant for CST3492 Java Enterprise Application Development.
+        F0: retrieval-augmented Q&amp;A over the lecture material with page-level citations.
+        F1: JUnit test generation from a natural-language scenario, commit messages from staged
+        changes, and course-aware code review.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.json</depends>
+    <depends>com.intellij.modules.java</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <toolWindow id="CST3492 TA" anchor="right"
+                    factoryClass="com.cst3492.ta.ui.TaToolWindowFactory"/>
+        <applicationService serviceImplementation="com.cst3492.ta.config.TaSettingsState"/>
+        <applicationConfigurable parentId="tools" displayName="CST3492 TA"
+                                 instance="com.cst3492.ta.config.TaSettingsConfigurable"/>
+    </extensions>
+
+    <actions>
+        <action id="CstTa.AskSelectedCode"
+                class="com.cst3492.ta.action.AskSelectedCodeAction"
+                text="Ask TA about Selected Code"
+                description="Ask a question with the selected code as context">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+        <action id="CstTa.GenerateTests"
+                class="com.cst3492.ta.action.GenerateTestsAction"
+                text="Generate Tests from Requirement"
+                description="Generate a JUnit 5 test from a natural-language scenario">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+        <action id="CstTa.ReviewCode"
+                class="com.cst3492.ta.action.ReviewCodeAction"
+                text="Review Code with Course Context"
+                description="Review the selected code using the lecture material">
+            <add-to-group group-id="EditorPopupMenu" anchor="last"/>
+        </action>
+        <action id="CstTa.GenerateCommitMessage"
+                class="com.cst3492.ta.action.GenerateCommitMessageAction"
+                text="Generate Commit Message from Staged Changes"
+                description="Draft a conventional commit message from the staged diff">
+            <add-to-group group-id="Vcs.MainMenu" anchor="last"/>
+        </action>
+    </actions>
+</idea-plugin>

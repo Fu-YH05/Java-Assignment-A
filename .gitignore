@@ -1,0 +1,31 @@
+# Local teaching references and draft submission artifacts
+/gradebook-ai/
+/gradebook-demo/
+/__MACOSX/
+/docs/
+/*.zip
+/*.pdf
+/.gradle-home/
+/.vscode/
+/tmp/
+
+# Build products and IDE state
+**/.gradle/
+**/.intellijPlatform/
+**/build/
+**/bin/
+**/out/
+**/.idea/
+*.iml
+*.class
+*.log
+.DS_Store
+
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.kdbx
+local.properties
