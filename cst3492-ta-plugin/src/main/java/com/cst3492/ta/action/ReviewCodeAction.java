@@ -7,6 +7,7 @@ import com.cst3492.ta.model.KnowledgeChunk;
 import com.cst3492.ta.service.TaProjectService;
 import com.cst3492.ta.util.JsonUtil;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -27,6 +28,11 @@ import java.util.List;
  * the course rather than giving generic style warnings.
  */
 public final class ReviewCodeAction extends AnAction {
+
+    @Override
+    public @NotNull ActionUpdateThread getActionUpdateThread() {
+        return ActionUpdateThread.EDT;
+    }
 
     @Override
     public void update(@NotNull AnActionEvent e) {

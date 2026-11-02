@@ -3,6 +3,7 @@ package com.cst3492.ta.action;
 import com.cst3492.ta.llm.LlmClient;
 import com.cst3492.ta.llm.Message;
 import com.cst3492.ta.service.TaProjectService;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
@@ -24,6 +25,11 @@ import java.util.List;
  * mandatory per the assignment: the user must type the scenario before anything is sent.
  */
 public final class GenerateTestsAction extends AnAction {
+
+    @Override
+    public @NotNull ActionUpdateThread getActionUpdateThread() {
+        return ActionUpdateThread.EDT;
+    }
 
     @Override
     public void update(@NotNull AnActionEvent e) {

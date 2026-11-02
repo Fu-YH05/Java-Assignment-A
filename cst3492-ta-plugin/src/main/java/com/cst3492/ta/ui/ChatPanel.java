@@ -54,15 +54,26 @@ public final class ChatPanel extends JPanel {
     }
 
     private void buildIndex() {
+        if (activeTask != null) return;
         TaSettingsState settings = TaSettingsState.getInstance();
-        if (TaSettingsState.getEmbeddingApiKey() == null || settings.materialsPath.isBlank()) {
-            Messages.showInfoMessage(project,
-                    "Configure the embedding API key and the materials folder first:\n"
-                            + "Settings > Tools > CST3492 TA.",
-                    "CST3492 TA");
-            view.finishIndex(null, "Configure the embedding API key and the materials folder first, then build the index.");
-            return;
-        }
+        // PasswordSafe lookups are slow operations, so the key check must stay off the EDT.
+        AppExecutorUtil.getAppExecutorService().execute(() -> {
+            boolean hasKey = TaSettingsState.getEmbeddingApiKey() != null;
+            onUi(() -> {
+                if (!hasKey || settings.materialsPath.isBlank()) {
+                    Messages.showInfoMessage(project,
+                            "Configure the embedding API key and the materials folder first:\n"
+                                    + "Settings > Tools > CST3492 TA.",
+                            "CST3492 TA");
+                    view.finishIndex(null, "Configure the embedding API key and the materials folder first, then build the index.");
+                    return;
+                }
+                startIndexBuild();
+            });
+        });
+    }
+
+    private void startIndexBuild() {
         if (activeTask != null) return;
         BackgroundWork.Handle[] holder = new BackgroundWork.Handle[1];
         holder[0] = BackgroundWork.run(project, "CST3492 TA: Building Index",

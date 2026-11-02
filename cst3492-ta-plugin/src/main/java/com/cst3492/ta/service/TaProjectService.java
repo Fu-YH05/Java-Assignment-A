@@ -101,6 +101,9 @@ public final class TaProjectService implements Disposable {
     synchronized BuildResult buildIndex(TaSettingsState settings, EmbeddingProvider provider,
                                        ProgressIndicator indicator) throws IOException {
         Path materials = Path.of(settings.materialsPath);
+        // The shared background worker starts indeterminate; a per-document fraction needs this.
+        indicator.setIndeterminate(false);
+        indicator.setFraction(0.0);
 
         if (store == null) {
             loadIndex();
