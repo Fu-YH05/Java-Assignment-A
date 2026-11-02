@@ -25,6 +25,7 @@ dependencies {
     implementation 'org.apache.pdfbox:pdfbox:2.0.31'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
     implementation 'org.commonmark:commonmark:0.24.0'
+    implementation 'com.fifesoft:rsyntaxtextarea:3.6.0'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
     testImplementation 'org.junit.platform:junit-platform-launcher'
 }
@@ -50,7 +51,7 @@ tasks.register('chatUiTest', JavaExec) {
     dependsOn testClasses
     classpath = files(sourceSets.main.output, sourceSets.test.output,
             configurations.testRuntimeClasspath.filter {
-                it.name.startsWith('commonmark-') || it.name.startsWith('junit-')
+                it.name.startsWith('commonmark-') || it.name.startsWith('rsyntaxtextarea-') || it.name.startsWith('junit-')
                         || it.name.startsWith('opentest4j-') || it.name.startsWith('apiguardian-')
             })
     mainClass = 'com.cst3492.ta.ui.ChatUiChecks'
@@ -61,7 +62,9 @@ tasks.register('previewChatUi', JavaExec) {
     group = 'application'
     dependsOn testClasses
     classpath = files(sourceSets.main.output, sourceSets.test.output,
-            configurations.testRuntimeClasspath.filter { it.name.startsWith('commonmark-') })
+            configurations.testRuntimeClasspath.filter {
+                it.name.startsWith('commonmark-') || it.name.startsWith('rsyntaxtextarea-')
+            })
     mainClass = 'com.cst3492.ta.ui.ChatUiPreview'
     jvmArgs '-Dsun.java2d.d3d=false'
 }

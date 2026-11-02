@@ -37,10 +37,10 @@ final class MarkdownContent extends JPanel {
             if (node instanceof FencedCodeBlock code) {
                 flush(prose, linkHandler);
                 String language = code.getInfo().isBlank() ? "Code" : code.getInfo().split("\\s+", 2)[0];
-                add(codeBlock(code.getLiteral(), language, codeFont));
+                add(new CodeBlock(code.getLiteral(), language, codeFont));
             } else if (node instanceof IndentedCodeBlock code) {
                 flush(prose, linkHandler);
-                add(codeBlock(code.getLiteral(), "Code", codeFont));
+                add(new CodeBlock(code.getLiteral(), "Code", codeFont));
             } else {
                 prose.append(RENDERER.render(node));
             }
@@ -168,36 +168,6 @@ final class MarkdownContent extends JPanel {
                 + " li {margin-bottom:5px;} code,pre {font-family:monospace;}"
                 + " a {color:" + hex(link) + ";} blockquote {margin-left:12px;}"
                 + "</style></head><body>" + body + "</body></html>");
-    }
-
-    private static JPanel codeBlock(String code, String language, Font codeFont) {
-        JPanel panel = new JPanel(new BorderLayout(0, 4));
-        panel.setAlignmentX(LEFT_ALIGNMENT);
-        panel.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createLineBorder(UIManager.getColor("Separator.foreground")),
-                BorderFactory.createEmptyBorder(8, 10, 8, 10)));
-        JPanel header = new JPanel(new BorderLayout());
-        header.setOpaque(false);
-        header.add(new JLabel(language), BorderLayout.WEST);
-        JButton copy = smallButton("Copy code");
-        copy.addActionListener(event -> copy(copy, code));
-        header.add(copy, BorderLayout.EAST);
-        JTextArea area = new JTextArea(code.stripTrailing());
-        area.setEditable(false);
-        area.setFont(codeFont);
-        area.setBackground(panel.getBackground());
-        area.setForeground(UIManager.getColor("Label.foreground"));
-        area.setRows(Math.min(18, Math.max(2, code.stripTrailing().split("\n", -1).length)));
-        area.setColumns(1);
-        area.setCaretPosition(0);
-        ((DefaultCaret) area.getCaret()).setUpdatePolicy(DefaultCaret.NEVER_UPDATE);
-        JScrollPane scroll = new JScrollPane(area);
-        scroll.setBorder(null);
-        scroll.setMinimumSize(new Dimension(0, 0));
-        panel.add(header, BorderLayout.NORTH);
-        panel.add(scroll, BorderLayout.CENTER);
-        panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, panel.getPreferredSize().height));
-        return panel;
     }
 
     static JButton smallButton(String text) {

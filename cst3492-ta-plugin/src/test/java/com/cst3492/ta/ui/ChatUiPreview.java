@@ -17,6 +17,10 @@ public final class ChatUiPreview {
 
     public static void main(String[] args) throws Exception {
         UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
+        if (args.length == 2 && args[0].equals("--capture-code")) {
+            captureCode(java.nio.file.Path.of(args[1]));
+            return;
+        }
         SwingUtilities.invokeLater(() -> {
             window = new JFrame("CST3492 TA · Offline UI verification");
             window.setDefaultCloseOperation(WindowConstants.DISPOSE_ON_CLOSE);
@@ -52,6 +56,40 @@ public final class ChatUiPreview {
             window.setLocation(80, 60);
             window.setVisible(true);
         });
+    }
+
+    /** Render the production code block at both supported preview widths without opening a window. */
+    private static void captureCode(java.nio.file.Path directory) throws Exception {
+        java.nio.file.Files.createDirectories(directory);
+        String code = "/**\n * Adds a score for the given student.\n * @param studentId the ID of the student\n */\n"
+                + "public void addScore(String studentId, int score) {\n"
+                + "    ensureKnown(studentId); // Ensure the student exists\n"
+                + "    if (score < 0 || score > 100) {\n"
+                + "        throw new IllegalArgumentException(\"score must be 0-100: \" + score);\n"
+                + "    }\n    scores.get(studentId).add(score);\n}\n";
+        for (boolean darkMode : new boolean[]{false, true}) {
+            for (int pixels : new int[]{400, 600}) {
+                var image = new java.awt.image.BufferedImage(pixels, 360, java.awt.image.BufferedImage.TYPE_INT_RGB);
+                SwingUtilities.invokeAndWait(() -> {
+                    dark = darkMode;
+                    theme();
+                    JFrame frame = new JFrame();
+                    try {
+                        JPanel page = new JPanel(new BorderLayout());
+                        page.setBorder(BorderFactory.createEmptyBorder(16, 16, 16, 16));
+                        page.add(new CodeBlock(code, "java", new Font("Consolas", Font.PLAIN, 14)));
+                        frame.setContentPane(page);
+                        page.setPreferredSize(new Dimension(pixels, 360));
+                        frame.pack();
+                        frame.validate();
+                        Graphics2D graphics = image.createGraphics();
+                        try { page.printAll(graphics); } finally { graphics.dispose(); }
+                    } finally { frame.dispose(); }
+                });
+                javax.imageio.ImageIO.write(image, "png", directory.resolve(
+                        "code-" + (darkMode ? "dark-" : "light-") + pixels + ".png").toFile());
+            }
+        }
     }
 
     private static void show(String state) {
