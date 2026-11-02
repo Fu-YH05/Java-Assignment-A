@@ -1,6 +1,7 @@
 package com.cst3492.ta.ui;
 
 import com.cst3492.ta.model.KnowledgeChunk;
+import com.cst3492.ta.model.Conversation;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -35,12 +36,19 @@ final class ChatView extends JPanel {
         }
     };
     private final JLabel context = new JLabel();
-    private final JLabel indexStatus = new JLabel("Checking index…");
+    private final JMenuItem indexStatus = new JMenuItem("Checking course index…");
     private final JLabel model = new JLabel();
     private final JButton send = new JButton("Send");
-    private final JButton index = MarkdownContent.smallButton("Build index");
+    private final JMenuItem index = new JMenuItem("Build index");
+    private final JButton more = MarkdownContent.toolButton("···", "Chat options");
+    private JPanel optionsBar;
     private final JButton latest = MarkdownContent.smallButton("↓ Latest response");
     private final JPanel empty = new JPanel();
+    private final Conversation conversation;
+    private final Runnable changed;
+    private final java.util.function.BiConsumer<Conversation.Turn, Runnable> createTestFile;
+    private Conversation.Turn requestTurn;
+    private boolean restoring;
     private JPanel pending;
     private String codeContext;
     private String requestQuestion;
@@ -55,13 +63,22 @@ final class ChatView extends JPanel {
     private Font codeFont = new Font(Font.MONOSPACED, Font.PLAIN, 14);
 
     ChatView(BiConsumer<String, String> ask, Runnable buildIndex, Runnable settings, Consumer<String> openLink) {
+        this(ask, buildIndex, settings, openLink, new Conversation(), () -> { }, (turn, done) -> done.run());
+    }
+
+    ChatView(BiConsumer<String, String> ask, Runnable buildIndex, Runnable settings, Consumer<String> openLink,
+             Conversation conversation, Runnable changed, java.util.function.BiConsumer<Conversation.Turn, Runnable> createTestFile) {
         super(new BorderLayout(0, 0));
+        this.conversation = conversation;
+        this.changed = changed;
+        this.createTestFile = createTestFile;
         this.ask = ask;
         this.buildIndex = buildIndex;
         this.settings = settings;
         this.openLink = openLink;
         setBorder(BorderFactory.createEmptyBorder(10, 12, 10, 12));
-        add(toolbar(), BorderLayout.NORTH);
+        optionsBar = toolbar();
+        add(optionsBar, BorderLayout.NORTH);
 
         messages.setLayout(new BoxLayout(messages, BoxLayout.Y_AXIS));
         history.setBorder(null);
@@ -89,6 +106,22 @@ final class ChatView extends JPanel {
         add(center, BorderLayout.CENTER);
         add(composer(), BorderLayout.SOUTH);
         showEmpty();
+        restoreTranscript();
+    }
+
+    private void restoreTranscript() {
+        restoring = true;
+        String draft = conversation.draft;
+        String draftCode = conversation.draftCode;
+        for (Conversation.Turn turn : conversation.turns) {
+            requestTurn = turn;
+            startRequest(turn.question, turn.code, true);
+            if ("complete".equals(turn.status)) answer(turn.text, turn.sources, turn.grounded);
+            else fail(turn.error.isBlank() ? "The request was interrupted. Retry to send it again." : turn.error);
+        }
+        input.setText(draft);
+        setCodeContext(draftCode);
+        restoring = false;
     }
 
     private JPanel toolbar() {
@@ -102,19 +135,19 @@ final class ChatView extends JPanel {
                 buildIndex.run();
             }
         });
-        indexStatus.setFont(UIManager.getFont("Label.font").deriveFont(11f));
-        bar.add(index, BorderLayout.WEST);
-        bar.add(indexStatus, BorderLayout.CENTER);
-        JButton more = MarkdownContent.smallButton("···");
-        more.setToolTipText("Chat options");
-        more.getAccessibleContext().setAccessibleName("Chat options");
         JPopupMenu options = new JPopupMenu();
+        indexStatus.setEnabled(false);
+        options.add(indexStatus);
+        options.add(index);
+        options.addSeparator();
         JMenuItem configure = new JMenuItem("Settings");
         configure.addActionListener(event -> settings.run());
         JMenuItem clear = new JMenuItem("Clear conversation");
         clear.addActionListener(event -> {
             if (!busy && !building) {
                 messages.removeAll();
+                conversation.turns.clear();
+                changed.run();
                 pending = null;
                 followBottom = true;
                 hasNewContent = false;
@@ -134,6 +167,11 @@ final class ChatView extends JPanel {
         });
         bar.add(more, BorderLayout.EAST);
         return bar;
+    }
+
+    JButton takeOptionsButton() {
+        remove(optionsBar);
+        return more;
     }
 
     private JPanel composer() {
@@ -159,6 +197,11 @@ final class ChatView extends JPanel {
                 int lines = Math.max(input.getLineCount(), input.getText().length() / 45 + 1);
                 input.setRows(Math.min(7, Math.max(3, lines)));
                 updateControls();
+                if (!restoring) {
+                    conversation.draft = input.getText();
+                    conversation.draftCode = codeContext;
+                    changed.run();
+                }
                 panel.revalidate();
             }
             @Override public void insertUpdate(DocumentEvent e) { changed(); }
@@ -186,17 +229,26 @@ final class ChatView extends JPanel {
     }
 
     private void showEmpty() {
+        if (conversation.testTask) {
+            JPanel snapshot = card("BOUND JAVA SOURCE · " + java.nio.file.Path.of(conversation.sourcePath).getFileName());
+            snapshot.setToolTipText(conversation.sourcePath);
+            snapshot.add(new CodeBlock(conversation.codeSnapshot, "java", codeFont), BorderLayout.CENTER);
+            messages.add(snapshot);
+        }
         empty.removeAll();
         empty.setLayout(new BoxLayout(empty, BoxLayout.Y_AXIS));
         empty.setOpaque(false);
         empty.setBorder(BorderFactory.createEmptyBorder(30, 6, 24, 6));
         empty.setAlignmentX(LEFT_ALIGNMENT);
-        JLabel title = new JLabel("Ask your course TA");
+        JLabel title = new JLabel(conversation.testTask ? "What would you like to test?" : "Ask your course TA");
         title.setFont(UIManager.getFont("Label.font").deriveFont(Font.BOLD, 17f));
         empty.add(title);
         empty.add(Box.createVerticalStrut(9));
-        empty.add(MarkdownContent.plain("Understand Java concepts, explore course material,\nor ask about selected code."));
-        for (String example : List.of("Explain dependency injection", "How do I test an empty input?")) {
+        empty.add(MarkdownContent.plain(conversation.testTask
+                ? "Describe a scenario in natural language. The bound code will be used to generate a JUnit 5 test class."
+                : "Understand Java concepts, explore course material,\nor ask about selected code."));
+        for (String example : conversation.testTask ? List.of("Test empty input and boundary values", "Test the normal result and invalid arguments")
+                : List.of("Explain dependency injection", "How do I test an empty input?")) {
             JButton suggestion = MarkdownContent.smallButton(example);
             suggestion.setAlignmentX(LEFT_ALIGNMENT);
             suggestion.addActionListener(event -> { input.setText(example); input.requestFocusInWindow(); });
@@ -211,7 +263,14 @@ final class ChatView extends JPanel {
         model.setToolTipText(name);
     }
 
-    void setCodeFont(Font font) { codeFont = font; }
+    void setCodeFont(Font font) {
+        codeFont = font;
+        if (!busy) {
+            messages.removeAll();
+            showEmpty();
+            restoreTranscript();
+        }
+    }
 
     void setIndexStatus(String text, boolean ready) {
         indexDescription = text;
@@ -220,9 +279,12 @@ final class ChatView extends JPanel {
     }
 
     private void updateIndexDisplay() {
-        String text = building ? "Building course index…" : indexDescription;
+        String text = building ? "Building course index…" : indexReady ? "Course index ready"
+                : indexDescription.startsWith("Checking") ? "Checking course index…" : "Course index not ready";
         indexStatus.setText(text);
-        indexStatus.setToolTipText(text);
+        indexStatus.setToolTipText(indexDescription);
+        index.setToolTipText(indexDescription);
+        more.setToolTipText("Chat options · " + indexDescription);
         index.setText(indexReady ? "Rebuild index" : "Build index");
     }
 
@@ -248,7 +310,7 @@ final class ChatView extends JPanel {
     private void submit() {
         if (busy || building || input.getText().isBlank()) return;
         String question = input.getText().trim();
-        String code = codeContext;
+        String code = conversation.testTask ? conversation.codeSnapshot : codeContext;
         input.setText("");
         setCodeContext(null);
         startRequest(question, code, true);
@@ -270,12 +332,25 @@ final class ChatView extends JPanel {
         busy = true;
         requestQuestion = question;
         requestCode = code;
+        if (!restoring) {
+            if (newQuestion) {
+                requestTurn = new Conversation.Turn();
+                requestTurn.question = question;
+                requestTurn.code = code;
+                conversation.turns.add(requestTurn);
+            }
+            requestTurn.status = "pending";
+            requestTurn.error = "";
+            if (!conversation.testTask && conversation.title.equals("New conversation"))
+                conversation.title = question.substring(0, Math.min(48, question.length())).replace('\n', ' ');
+            changed.run();
+        }
         updateControls();
         changeMessages(() -> {
             if (newQuestion) {
                 JPanel user = card("YOU");
                 user.add(MarkdownContent.plain(question), BorderLayout.CENTER);
-                if (code != null && !code.isBlank()) {
+                if (!conversation.testTask && code != null && !code.isBlank()) {
                     JButton selected = MarkdownContent.smallButton("Selected Java code · " + code.lines().count() + " lines");
                     selected.addActionListener(event -> JOptionPane.showMessageDialog(this,
                             new JScrollPane(new JTextArea(code, 12, 44)), "Code sent with this question", JOptionPane.PLAIN_MESSAGE));
@@ -296,19 +371,56 @@ final class ChatView extends JPanel {
             pending.add(waiting, BorderLayout.CENTER);
             messages.add(pending);
         });
-        ask.accept(question, code);
+        if (!restoring) ask.accept(question, code);
+    }
+
+    void answerTest(String code, String targetPath) {
+        requestTurn.testCode = code;
+        requestTurn.targetPath = targetPath;
+        answer("Review the generated JUnit 5 class, then create a separate test file.", List.of(), false);
+    }
+
+    void receivedModelOutput(String text) {
+        if (text == null || text.isBlank()) return;
+        requestTurn.modelOutput = text;
+        conversation.hasModelOutput = true;
+        changed.run();
     }
 
     void answer(String text, List<KnowledgeChunk> sources, boolean grounded) {
+        if (!restoring) {
+            receivedModelOutput(conversation.testTask ? requestTurn.testCode : text);
+            requestTurn.status = "complete";
+            requestTurn.text = text;
+            requestTurn.grounded = grounded;
+            requestTurn.sources = sources.stream().map(source -> {
+                KnowledgeChunk citation = new KnowledgeChunk();
+                citation.docId = source.docId;
+                citation.docName = source.docName;
+                citation.pageFrom = source.pageFrom;
+                citation.pageTo = source.pageTo;
+                return citation;
+            }).toList();
+            changed.run();
+        }
         busy = false;
         updateControls();
         changeMessages(() -> {
             pending.removeAll();
             JPanel header = header("CST3492 TA");
             JButton copy = MarkdownContent.smallButton("Copy answer");
-            copy.addActionListener(event -> MarkdownContent.copy(copy, text));
+            String copiedText = conversation.testTask && !requestTurn.testCode.isBlank() ? requestTurn.testCode : text;
+            copy.addActionListener(event -> MarkdownContent.copy(copy, copiedText));
             header.add(copy, BorderLayout.EAST);
             pending.add(header, BorderLayout.NORTH);
+            if (conversation.testTask && !requestTurn.testCode.isBlank()) {
+                JPanel content = new JPanel(new BorderLayout(0, 8));
+                content.setOpaque(false);
+                content.add(testFileActions(requestTurn), BorderLayout.NORTH);
+                content.add(new MarkdownContent("```java\n" + requestTurn.testCode + "\n```", openLink, codeFont), BorderLayout.CENTER);
+                pending.add(content, BorderLayout.CENTER);
+                return;
+            }
 
             Map<String, KnowledgeChunk> unique = new LinkedHashMap<>();
             sources.forEach(source -> unique.putIfAbsent(source.citationLabel(), source));
@@ -358,7 +470,46 @@ final class ChatView extends JPanel {
         });
     }
 
+    private JPanel testFileActions(Conversation.Turn turn) {
+        JPanel actions = new JPanel(new BorderLayout(0, 5));
+        actions.setOpaque(false);
+        String proposed = turn.targetPath.isBlank() ? "This module's test source root" : turn.targetPath;
+        JTextArea path = new JTextArea(turn.filePath.isBlank() ? proposed : turn.filePath) {
+            @Override public Dimension getPreferredSize() {
+                int width = getParent() == null || getParent().getWidth() == 0 ? 360 : getParent().getWidth();
+                setSize(width, Short.MAX_VALUE);
+                return new Dimension(0, super.getPreferredSize().height);
+            }
+        };
+        path.setFont(UIManager.getFont("Label.font").deriveFont(11f));
+        path.setEditable(false);
+        path.setOpaque(false);
+        path.setLineWrap(true);
+        path.setWrapStyleWord(false);
+        path.setToolTipText(path.getText());
+        JButton create = MarkdownContent.smallButton(turn.filePath.isBlank() ? "Create test file" : "Open test file");
+        create.addActionListener(event -> {
+            create.setEnabled(false);
+            createTestFile.accept(turn, () -> {
+            create.setEnabled(true);
+            path.setText(turn.filePath.isBlank() ? proposed : turn.filePath);
+            path.setToolTipText(path.getText());
+            create.setText(turn.filePath.isBlank() ? "Create test file" : "Open test file");
+            changed.run();
+            actions.revalidate();
+            });
+        });
+        actions.add(path, BorderLayout.NORTH);
+        actions.add(create, BorderLayout.WEST);
+        return actions;
+    }
+
     void fail(String detail) {
+        if (!restoring) {
+            requestTurn.status = "failed";
+            requestTurn.error = detail;
+            changed.run();
+        }
         busy = false;
         updateControls();
         if (input.getText().isBlank()) {
@@ -370,7 +521,13 @@ final class ChatView extends JPanel {
             pending.add(header("REQUEST FAILED"), BorderLayout.NORTH);
             JPanel content = new JPanel(new BorderLayout(0, 7));
             content.setOpaque(false);
-            content.add(MarkdownContent.plain(friendlyError(detail)), BorderLayout.NORTH);
+            JPanel failure = new JPanel(new BorderLayout(0, 7));
+            failure.setOpaque(false);
+            failure.add(MarkdownContent.plain(friendlyError(detail)), BorderLayout.NORTH);
+            if (!requestTurn.modelOutput.isBlank()) {
+                failure.add(new MarkdownContent(requestTurn.modelOutput, openLink, codeFont), BorderLayout.CENTER);
+            }
+            content.add(failure, BorderLayout.NORTH);
             JEditorPane details = MarkdownContent.plain(detail);
             details.setVisible(false);
             content.add(details, BorderLayout.CENTER);
@@ -380,6 +537,7 @@ final class ChatView extends JPanel {
             String failedQuestion = requestQuestion;
             String failedCode = requestCode;
             JPanel failedCard = pending;
+            Conversation.Turn failedTurn = requestTurn;
             retry.addActionListener(event -> {
                 if (busy || building) return;
                 if (input.getText().trim().equals(failedQuestion)) {
@@ -387,6 +545,7 @@ final class ChatView extends JPanel {
                     setCodeContext(null);
                 }
                 pending = failedCard;
+                requestTurn = failedTurn;
                 startRequest(failedQuestion, failedCode, false);
             });
             JButton configure = MarkdownContent.smallButton("Settings");
@@ -403,16 +562,21 @@ final class ChatView extends JPanel {
 
     private void setCodeContext(String code) {
         codeContext = code;
-        context.setText(code == null ? "" : "Selected Java code · " + code.lines().count() + " lines");
+        if (!restoring) {
+            conversation.draftCode = code;
+            changed.run();
+        }
+        context.setText(conversation.testTask ? "JUnit 5 · Bound code snapshot"
+                : code == null ? "" : "Selected Java code · " + code.lines().count() + " lines");
         context.setToolTipText(code == null ? null : "The selected code will be included when you send this question.");
-        context.setVisible(code != null && !code.isBlank());
+        context.setVisible(conversation.testTask || code != null && !code.isBlank());
     }
 
     private void updateControls() {
         updateIndexDisplay();
         index.setEnabled(!busy && !building);
         send.setEnabled(!busy && !building && !input.getText().isBlank());
-        send.setText(busy ? "Waiting…" : "Send");
+        send.setText(busy ? "Waiting…" : conversation.testTask ? "Generate tests" : "Send");
     }
 
     private JPanel card(String role) {

@@ -178,6 +178,18 @@ final class MarkdownContent extends JPanel {
         return button;
     }
 
+    static JButton toolButton(String text, String tooltip) {
+        JButton button = smallButton(text);
+        button.setFont(UIManager.getFont("Label.font").deriveFont(Font.PLAIN,
+                UIManager.getFont("Label.font").getSize2D() + 2f));
+        button.setMargin(new Insets(6, 3, 6, 3));
+        button.setBorderPainted(false);
+        button.setContentAreaFilled(false);
+        button.setToolTipText(tooltip);
+        button.getAccessibleContext().setAccessibleName(tooltip);
+        return button;
+    }
+
     static void copy(JButton button, String text) {
         try {
             Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(text), null);

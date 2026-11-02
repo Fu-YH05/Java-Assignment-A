@@ -130,7 +130,9 @@ class ChatViewTest {
             JFrame frame = new JFrame("Chat clear regression");
             LookAndFeel originalLookAndFeel = UIManager.getLookAndFeel();
             try {
-                ChatView view = new ChatView((q, c) -> { }, () -> { }, () -> { }, ignored -> { });
+                var indexBuilds = new java.util.concurrent.atomic.AtomicInteger();
+                ChatView view = new ChatView((q, c) -> { }, indexBuilds::incrementAndGet, () -> { }, ignored -> { });
+                view.setIndexStatus("10 documents · 116 chunks", true);
                 try { UIManager.setLookAndFeel(new javax.swing.plaf.nimbus.NimbusLookAndFeel()); }
                 catch (UnsupportedLookAndFeelException e) { throw new AssertionError(e); }
                 frame.setContentPane(view);
@@ -144,6 +146,14 @@ class ChatViewTest {
                 JMenuItem clear = java.util.Arrays.stream(popup.getComponents())
                         .filter(c -> c instanceof JMenuItem item && item.getText().equals("Clear conversation"))
                         .map(c -> (JMenuItem)c).findFirst().orElseThrow();
+                JMenuItem rebuild = java.util.Arrays.stream(popup.getComponents())
+                        .filter(c -> c instanceof JMenuItem item && item.getText().equals("Rebuild index"))
+                        .map(c -> (JMenuItem)c).findFirst().orElseThrow();
+                assertFalse(rebuild.isEnabled());
+                assertEquals("10 documents · 116 chunks", rebuild.getToolTipText());
+                assertTrue(options.getToolTipText().contains("116 chunks"));
+                assertFalse(descendants(view).stream().anyMatch(c -> c instanceof JButton b
+                        && b.getText().equals("Rebuild index")));
                 assertFalse(clear.isEnabled());
                 MenuSelectionManager.defaultManager().clearSelectedPath();
                 view.answer("Previous answer", List.of(), false);
@@ -156,6 +166,13 @@ class ChatViewTest {
                         && label.getText().equals("Ask your course TA")));
                 assertFalse(descendants(view).stream().filter(c -> c instanceof JEditorPane)
                         .map(c -> ((JEditorPane)c).getText()).anyMatch(t -> t.contains("Previous answer")));
+                options.doClick();
+                assertTrue(rebuild.isEnabled());
+                rebuild.doClick();
+                assertEquals(1, indexBuilds.get());
+                assertFalse(rebuild.isEnabled());
+                view.finishIndex("Index updated", null);
+                assertTrue(rebuild.isEnabled());
             } finally {
                 MenuSelectionManager.defaultManager().clearSelectedPath();
                 frame.dispose();

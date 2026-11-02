@@ -21,6 +21,7 @@ repositories {
 dependencies {
     intellijPlatform {
         intellijIdeaCommunity('2024.2.6')
+        bundledPlugin('com.intellij.java')
     }
     implementation 'org.apache.pdfbox:pdfbox:2.0.31'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
@@ -53,6 +54,7 @@ tasks.register('chatUiTest', JavaExec) {
             configurations.testRuntimeClasspath.filter {
                 it.name.startsWith('commonmark-') || it.name.startsWith('rsyntaxtextarea-') || it.name.startsWith('junit-')
                         || it.name.startsWith('opentest4j-') || it.name.startsWith('apiguardian-')
+                        || it.name.startsWith('jackson-')
             })
     mainClass = 'com.cst3492.ta.ui.ChatUiChecks'
 }

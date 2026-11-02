@@ -17,6 +17,10 @@ public final class ChatUiPreview {
 
     public static void main(String[] args) throws Exception {
         UIManager.setLookAndFeel(UIManager.getCrossPlatformLookAndFeelClassName());
+        if (args.length == 2 && args[0].equals("--capture-conversations")) {
+            captureConversations(java.nio.file.Path.of(args[1]));
+            return;
+        }
         if (args.length == 2 && args[0].equals("--capture-code")) {
             captureCode(java.nio.file.Path.of(args[1]));
             return;
@@ -56,6 +60,78 @@ public final class ChatUiPreview {
             window.setLocation(80, 60);
             window.setVisible(true);
         });
+    }
+
+    /** Render real conversation pages for repeated design reviews, without an IDE or model calls. */
+    private static void captureConversations(java.nio.file.Path directory) throws Exception {
+        java.nio.file.Files.createDirectories(directory);
+        for (boolean darkMode : new boolean[]{false, true}) {
+            for (int pixels : new int[]{400, 600}) {
+                for (String state : List.of("draft", "result", "history")) {
+                    java.util.concurrent.atomic.AtomicReference<JFrame> frame = new java.util.concurrent.atomic.AtomicReference<>();
+                    SwingUtilities.invokeAndWait(() -> {
+                        dark = darkMode;
+                        theme();
+                        var history = new com.cst3492.ta.model.Conversation.History();
+                        var chat = history.add(new com.cst3492.ta.model.Conversation());
+                        chat.title = "JUnit 断言与边界测试";
+                        chat.draft = "未发送的问题草稿";
+                        var answer = new com.cst3492.ta.model.Conversation.Turn();
+                        answer.question = "如何测试输入边界？";
+                        answer.text = "分别检查空输入、最小值与最大值。";
+                        answer.status = "complete";
+                        chat.turns.add(answer);
+                        var deck = new ConversationDeck(history, c -> {
+                            ChatView view = new ChatView((q, code) -> {}, () -> {}, () -> {}, url -> {}, c,
+                                    () -> {}, (turn, done) -> done.run());
+                            view.setCodeFont(new Font("Consolas", Font.PLAIN, 14));
+                            view.setIndexStatus("Course index ready", true);
+                            view.setModel("deepseek-chat");
+                            return view;
+                        }, () -> {});
+                        var task = new com.cst3492.ta.model.Conversation();
+                        task.testTask = true;
+                        task.sourcePath = "src/main/java/example/TaGenerationDemo.java";
+                        task.title = "TaGenerationDemo.java · Unit tests";
+                        task.codeSnapshot = "package example;\n\npublic class TaGenerationDemo {\n    public static String normalize(String value) {\n        return value == null ? \"\" : value.trim();\n    }\n}";
+                        task.draft = "验证 null、空字符串和首尾空白的情况。";
+                        deck.addTest(task);
+                        if (!state.equals("draft")) {
+                            deck.activeView().askQuestion(task.draft, task.codeSnapshot);
+                            deck.activeView().answerTest("package example;\n\nimport org.junit.jupiter.api.Test;\nimport static org.junit.jupiter.api.Assertions.*;\n\nclass TaGenerationDemoTest {\n    @Test void normalizesNull() {\n        assertEquals(\"\", TaGenerationDemo.normalize(null));\n    }\n}", "src/test/java/example/TaGenerationDemoTest.java");
+                        }
+                        if (state.equals("history")) clickHistory(deck);
+                        JFrame window = new JFrame();
+                        window.setContentPane(deck);
+                        deck.setPreferredSize(new Dimension(pixels, 850));
+                        window.pack();
+                        window.validate();
+                        frame.set(window);
+                    });
+                    SwingUtilities.invokeAndWait(() -> {});
+                    var image = new java.awt.image.BufferedImage(pixels, 850, java.awt.image.BufferedImage.TYPE_INT_RGB);
+                    SwingUtilities.invokeAndWait(() -> {
+                        try {
+                            Graphics2D graphics = image.createGraphics();
+                            try { frame.get().getContentPane().printAll(graphics); } finally { graphics.dispose(); }
+                        } finally { frame.get().dispose(); }
+                    });
+                    javax.imageio.ImageIO.write(image, "png", directory.resolve(
+                            (darkMode ? "dark-" : "light-") + pixels + "-" + state + ".png").toFile());
+                }
+            }
+        }
+    }
+
+    private static boolean clickHistory(Container parent) {
+        for (Component child : parent.getComponents()) {
+            if (child instanceof JButton button && button.getText().equals("History")) {
+                button.doClick();
+                return true;
+            }
+            if (child instanceof Container container && clickHistory(container)) return true;
+        }
+        return false;
     }
 
     /** Render the production code block at both supported preview widths without opening a window. */
