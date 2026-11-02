@@ -75,18 +75,21 @@ public class TaSettingsConfigurable implements Configurable {
     }
 
     private void testConnection() {
-        String key = apiKey.getText().isBlank() ? TaSettingsState.getChatApiKey() : apiKey.getText().trim();
-        String embedKey = embeddingApiKey.getText().isBlank()
-                ? TaSettingsState.getEmbeddingApiKey() : embeddingApiKey.getText().trim();
-        if (key == null || key.isBlank() || embedKey == null || embedKey.isBlank()) {
-            Messages.showWarningDialog("Configure both chat and embedding API keys first.", "CST3492 TA");
-            return;
-        }
+        String typedKey = apiKey.getText().trim();
+        String typedEmbedKey = embeddingApiKey.getText().trim();
         String chatUrl = chatBaseUrl.getText().trim();
         String chatName = chatModel.getText().trim();
         String embedUrl = embeddingBaseUrl.getText().trim();
         String embedName = embeddingModel.getText().trim();
         com.intellij.util.concurrency.AppExecutorUtil.getAppExecutorService().submit(() -> {
+            // Saved keys live in PasswordSafe, so fall back to them only off the EDT.
+            String key = typedKey.isEmpty() ? TaSettingsState.getChatApiKey() : typedKey;
+            String embedKey = typedEmbedKey.isEmpty() ? TaSettingsState.getEmbeddingApiKey() : typedEmbedKey;
+            if (key == null || key.isBlank() || embedKey == null || embedKey.isBlank()) {
+                SwingUtilities.invokeLater(() ->
+                        Messages.showWarningDialog("Configure both chat and embedding API keys first.", "CST3492 TA"));
+                return;
+            }
             boolean chatOk;
             boolean embedOk;
             try {

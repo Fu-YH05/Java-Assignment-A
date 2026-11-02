@@ -55,9 +55,10 @@ Service-level synchronization still serializes retrieval/build work for the same
 is not a concurrent read/write index implementation.
 
 Chat identifies selected-code questions and displays the submitted code snapshot. Its inert HTML
-renderer supports paragraphs/line breaks, fenced code, inline code and bold. Raw HTML is escaped;
-links/scripts are not executed. This is a small Markdown subset, not a full Markdown engine or
-syntax highlighter.
+renderer supports paragraphs/line breaks, inline code and bold. Raw HTML is escaped; links/scripts
+are not executed. Top-level fenced and indented code blocks are promoted to a syntax-highlighted,
+copyable component; code nested inside list items or blockquotes still uses the plain HTML subset.
+This remains a deliberately small Markdown subset, not a full Markdown engine.
 
 ## Design choices
 
@@ -131,13 +132,15 @@ call either provider. Rerunning on a different corpus requires reviewing the gol
 
 ## Automated verification
 
-Release 1.1.0 passed the complete Gradle `test buildPlugin` build: 42 tests, zero failures and
-zero errors. The target IDE runtime is used by Gradle; Java PSI APIs are declared through the
-bundled com.intellij.java build dependency. Tests cover citation identity/ranges and preserved
-indentation, file identity extraction, full diff partitioning/reduction, cancellation interrupting
-the worker, safe rendering, and the earlier indexing/retrieval regressions. They do not perform
-the interactive PSI/file-writing workflow or contact providers. The final plugin ZIP was checked
-for the 1.1.0 descriptor and new implementation classes.
+Release 1.1.0 passed the Gradle `test buildPlugin` build: 59 JUnit tests, zero failures and zero
+errors, plus 25 offline chat UI checks run by the separate `chatUiTest` task. The JUnit suite runs
+under the IntelliJ test bootstrap; `chatUiTest` executes the same view classes directly without it,
+so the two suites are separate and their counts are not subsets. The JUnit suite covers citation
+identity/ranges and preserved indentation, file identity extraction, full diff partitioning and
+reduction, cancellation interrupting the worker, safe rendering (including nested image filtering),
+and the earlier indexing/retrieval regressions. Neither suite performs the interactive PSI/file
+writing workflow or contacts providers. The final plugin ZIP was checked for the 1.1.0 descriptor
+and new implementation classes.
 
 ## Manual acceptance checklist
 

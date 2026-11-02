@@ -327,6 +327,7 @@ final class ChatView extends JPanel {
             JPanel sourceRows = new JPanel();
             sourceRows.setLayout(new BoxLayout(sourceRows, BoxLayout.Y_AXIS));
             sourceRows.setOpaque(false);
+            java.util.List<JEditorPane> rows = new java.util.ArrayList<>();
             int n = 0;
             for (KnowledgeChunk source : unique.values()) {
                 n++;
@@ -334,6 +335,7 @@ final class ChatView extends JPanel {
                 JEditorPane row = MarkdownContent.plain("[" + n + "] " + source.citationLabel());
                 row.setToolTipText(source.citationLabel());
                 sourceRows.add(row);
+                rows.add(row);
             }
             sourceRows.setVisible(false);
             JToggleButton toggle = new JToggleButton("Course sources · " + unique.size());
@@ -350,8 +352,15 @@ final class ChatView extends JPanel {
                 if (url.startsWith("#source-")) {
                     toggle.setSelected(true);
                     changeMessages(() -> sourceRows.setVisible(true));
-                    SwingUtilities.invokeLater(() -> sourceRows.scrollRectToVisible(
-                            new Rectangle(0, 0, sourceRows.getWidth(), Math.min(60, sourceRows.getHeight()))));
+                    int target = citationIndex(url);
+                    SwingUtilities.invokeLater(() -> {
+                        if (target >= 1 && target <= rows.size()) {
+                            sourceRows.scrollRectToVisible(rows.get(target - 1).getBounds());
+                        } else {
+                            sourceRows.scrollRectToVisible(
+                                    new Rectangle(0, 0, sourceRows.getWidth(), Math.min(60, sourceRows.getHeight())));
+                        }
+                    });
                 } else if (url.startsWith("https://") || url.startsWith("http://")) {
                     openLink.accept(url);
                 }
@@ -500,6 +509,26 @@ final class ChatView extends JPanel {
             latest.setVisible(!follow);
             programmaticScroll = false;
         });
+    }
+
+    void indexCancelled() {
+        building = false;
+        updateControls();
+        changeMessages(true, () -> {
+            JPanel card = card("INDEX BUILD CANCELLED");
+            card.add(MarkdownContent.plain(
+                    "The index build was cancelled. Any previously built index remains available."),
+                    BorderLayout.CENTER);
+            messages.add(card);
+        });
+    }
+
+    private static int citationIndex(String url) {
+        try {
+            return Integer.parseInt(url.substring("#source-".length()));
+        } catch (NumberFormatException ex) {
+            return 0;
+        }
     }
 
     private static String friendlyError(String detail) {

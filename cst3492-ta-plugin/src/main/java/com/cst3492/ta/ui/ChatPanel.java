@@ -84,7 +84,7 @@ public final class ChatPanel extends JPanel {
                 error -> view.finishIndex(null, error),
                 () -> {
                     activeTask = null;
-                    if (holder[0].isCancelled()) view.finishIndex(null, "Index build cancelled.");
+                    if (holder[0].isCancelled()) view.indexCancelled();
                     refreshIndexStatus();
                 });
         activeTask = holder[0];
