@@ -15,6 +15,8 @@ import java.util.regex.Pattern;
 public final class CitationVerifier {
 
     private static final Pattern CITE = Pattern.compile("\\{\\{cite:([^{}\\r\\n]*)\\}\\}");
+    /** Matches an unterminated token too, so a truncated reply cannot leak protocol text. */
+    private static final Pattern RAW_CITE = Pattern.compile("\\{\\{cite:[^{}\\r\\n]*(?:\\}\\}|(?=\\r?\\n|$))");
 
     private CitationVerifier() {
     }
@@ -43,7 +45,8 @@ public final class CitationVerifier {
             last = matcher.end();
         }
         sb.append(answer.substring(last));
-        String result = sb.toString();
+        // Re-run the raw sweep so a truncated, unterminated token cannot reach the user.
+        String result = stripTokens(sb.toString());
         if (!citationSurvived) {
             result = result + "\n\n(Note: no verifiable course citation survived verification; "
                     + "inspect the Sources list.)";
@@ -76,7 +79,7 @@ public final class CitationVerifier {
     }
 
     private static String stripTokens(String answer) {
-        return CITE.matcher(answer).replaceAll("").strip();
+        return RAW_CITE.matcher(answer).replaceAll("").strip();
     }
 
     private static String ensureDisclaimer(String answer) {

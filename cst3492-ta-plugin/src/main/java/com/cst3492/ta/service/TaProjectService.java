@@ -61,6 +61,22 @@ public final class TaProjectService implements Disposable {
         return project.getService(TaProjectService.class);
     }
 
+    public record IndexStatus(boolean ready, String description) { }
+
+    /** Local metadata only: checking UI readiness must not contact a provider or access credentials. */
+    public synchronized IndexStatus indexStatus() throws IOException {
+        if (store == null) loadIndex();
+        if (store.meta().chunks.isEmpty()) return new IndexStatus(false, "No course index");
+        TaSettingsState settings = TaSettingsState.getInstance();
+        if (store.meta().chunkingVersion != 2
+                || !settings.embeddingModel.equals(loadedModel)
+                || !settings.embeddingBaseUrl.equals(store.meta().embeddingBaseUrl)) {
+            return new IndexStatus(false, "Index needs rebuilding");
+        }
+        return new IndexStatus(true, store.meta().documents.size() + " documents · "
+                + store.meta().chunks.size() + " chunks");
+    }
+
     /* ---------------- index building ---------------- */
 
     public record BuildResult(int documentsBuilt, int documentsSkipped, int chunkCount, int pageCount) {

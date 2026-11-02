@@ -75,6 +75,16 @@ class CitationVerifierTest {
     }
 
     @Test
+    void filenamesWithSpacesParenthesesAndChineseAreVerified() {
+        for (String name : List.of("Chapter_01-new (1)", "第1章 软件工程", "Lecture #1")) {
+            String out = CitationVerifier.verify("Claim {{cite:" + name + "#6}}.",
+                    List.of(chunk(name, name + ".pdf", 6, 6)));
+            assertTrue(out.contains("[" + name + ".pdf, p.6]"));
+            assertFalse(out.contains("{{cite:"));
+        }
+    }
+
+    @Test
     void malformedAndOverflowingReferencesAreRemovedWithoutCrashing() {
         var sources = List.of(chunk("lec", "lec.pdf", 1, 1));
         String result = CitationVerifier.verify("X {{cite:lec#99999999999999999999}} {{cite:bad}}", sources);
@@ -89,5 +99,15 @@ class CitationVerifierTest {
         assertTrue(CitationVerifier.verify(code + " {{cite:lec#1}}",
                 List.of(chunk("lec", "lec.pdf", 1, 1))).contains(code));
         assertTrue(CitationVerifier.verify(code, List.of()).contains(code));
+    }
+
+    @Test
+    void malformedAndOverflowingCitationsCannotLeakOrCrash() {
+        String input = "Claim {{cite:missing#999999999999999}} {{cite:broken#abc}}\n"
+                + "Incomplete {{cite:unclosed#1";
+        String out = CitationVerifier.verify(input, List.of(chunk("lec", "Lecture.pdf", 1, 2)));
+        assertFalse(out.contains("{{cite:"));
+        assertTrue(out.contains("no verifiable course citation"));
+        assertTrue(CitationVerifier.verify(input, List.of()).startsWith(PromptBuilder.GENERAL_DISCLAIMER));
     }
 }
