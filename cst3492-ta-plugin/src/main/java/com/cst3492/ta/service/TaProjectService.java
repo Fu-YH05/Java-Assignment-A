@@ -110,6 +110,7 @@ public final class TaProjectService implements Disposable {
         int totalPages = 0;
         int done = 0;
         for (Path pdf : pdfs) {
+            if (Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException();
             indicator.checkCanceled();
             String docId = pdf.getFileName().toString().replaceAll("\\.pdf$", "");
             String fileHash = sha256Of(pdf);
@@ -153,6 +154,8 @@ public final class TaProjectService implements Disposable {
         }
         next.meta().chunkingVersion = 2;
         next.meta().embeddingBaseUrl = settings.embeddingBaseUrl;
+        indicator.checkCanceled();
+        if (Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException();
         next.save(provider.model(), next.meta().chunks.isEmpty() ? 0 : firstDimension(next));
         activateIndex(next);
         return new BuildResult(built, skipped, totalChunks, totalPages);
@@ -212,6 +215,7 @@ public final class TaProjectService implements Disposable {
     }
 
     public synchronized Answer ask(String question, @Nullable String codeContext) throws IOException {
+        if (Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException();
         TaSettingsState settings = TaSettingsState.getInstance();
         String apiKey = TaSettingsState.getChatApiKey();
         if (apiKey == null || apiKey.isBlank()) {
@@ -273,6 +277,7 @@ public final class TaProjectService implements Disposable {
 
     /** Retrieval for the code-review action; returns the retrieved chunks only. */
     public synchronized List<KnowledgeChunk> retrieveForContext(String query) throws IOException {
+        if (Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException();
         TaSettingsState settings = TaSettingsState.getInstance();
         if (store == null) {
             loadIndex();

@@ -43,7 +43,8 @@ generated index files. Endpoint/model changes require rebuilding the index.
 
 ## Verification
 
-The current implementation has 30 automated tests, which passed together with `buildPlugin`
-during local verification. Tests use generated PDFs and deterministic embeddings and need no
-live credentials. Real provider availability and answer quality require the manual checks in
-the plugin README.
+The regression suite covers indexing, citations, test-source parsing, complete diff partitioning,
+cancellation and inert chat rendering. Tests use generated PDFs and deterministic embeddings
+and need no live credentials. Real provider availability and answer quality require manual checks.
+See [the verification supplement](cst3492-ta-plugin/verification/REPORT.md) for the real-corpus
+BM25 benchmark, reproducible inputs and its explicitly recorded limitations.

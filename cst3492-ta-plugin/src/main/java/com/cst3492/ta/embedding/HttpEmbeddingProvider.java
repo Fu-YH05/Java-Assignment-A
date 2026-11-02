@@ -43,6 +43,7 @@ public final class HttpEmbeddingProvider implements EmbeddingProvider {
     public List<float[]> embedAll(List<String> texts) {
         List<float[]> out = new ArrayList<>(texts.size());
         for (int i = 0; i < texts.size(); i += BATCH_SIZE) {
+            if (Thread.currentThread().isInterrupted()) throw new java.util.concurrent.CancellationException();
             List<String> batch = texts.subList(i, Math.min(i + BATCH_SIZE, texts.size()));
             out.addAll(embedBatch(batch));
         }

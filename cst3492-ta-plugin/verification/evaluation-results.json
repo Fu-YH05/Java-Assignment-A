@@ -1,0 +1,367 @@
+{
+  "benchmark" : "BM25 real-corpus seed-page relevance; no live embeddings or LLM",
+  "documents" : 9,
+  "chunks" : 111,
+  "embeddingModel" : "BAAI/bge-m3",
+  "dimension" : 1024,
+  "sourceHashes" : {
+    "Lec-3.4-JUnit" : "e0a8a8720889d9ec8ba8d66b24c274c046f52307d2258b5b6bb705e90f87f6fb",
+    "Lec-0-Introduction" : "a4e25aa51a1bbcbbaf0b634b63ce466eba2291fe8d563d7d4c291d77add519ff",
+    "Lec-3.2-Generics-and-Collections" : "6892ebc40813ed39e75ae1bda0f7b48347363569431a4ed788f2361a538f16b3",
+    "Lec-3.1-Exceptions" : "caad773a8f9d8ad356bd9b4d33f5a887398536cdf76da06d52bb8c6be6c0c292",
+    "Lec-5-Building-AI-Powered-Java-Applications" : "56002983faf5b0a75d6bf6d327c860e69374f5b2b114c74d8b7a85ae8ca09ca1",
+    "Lec-2-OOP-with-Java" : "3fc2c08ec40fd5c5c89becd14c0f3fa30286a53870cf02d3a87fb8114994cd25",
+    "Lec-3.3-ModernSyntax-Annotations-and-Reflection" : "0b809aa40861e9ffe21e83ad058e9bb8d53c502113e06a6fb452bcbbb9527111",
+    "Lec-4-AI-Assisted-Java-Development" : "1f96fde6d341f2598c06ce58ff90421eb508b2e37ce357457092aef36da1ea27",
+    "Lec-1-Java-Fundamentals" : "8a172bb1d600e4ccfc34d6a83c22ce07b5ff3c2c451f9f5cd40d2e871091f7c1"
+  },
+  "positiveQueries" : 9,
+  "hitAt5" : 1.0,
+  "mrrAt5" : 0.9444444444444444,
+  "seedPageRecallAt5" : 1.0,
+  "negativeQueries" : 1,
+  "negativeNoHitRate" : 0.0,
+  "denseSelfRetrievalPassed" : 111,
+  "denseSelfRetrievalTotal" : 111,
+  "results" : [ {
+    "ranking" : [ {
+      "from" : 4,
+      "chunk" : "Lec-3.1-Exceptions-p4-c0",
+      "score" : 22.991932,
+      "to" : 4
+    }, {
+      "from" : 5,
+      "chunk" : "Lec-3.1-Exceptions-p5-c0",
+      "score" : 19.219006,
+      "to" : 5
+    }, {
+      "from" : 6,
+      "chunk" : "Lec-3.1-Exceptions-p6-c0",
+      "score" : 11.11485,
+      "to" : 6
+    }, {
+      "from" : 7,
+      "chunk" : "Lec-5-Building-AI-Powered-Java-Applications-p7-c0",
+      "score" : 6.7342696,
+      "to" : 7
+    }, {
+      "from" : 7,
+      "chunk" : "Lec-4-AI-Assisted-Java-Development-p8-c0",
+      "score" : 6.648477,
+      "to" : 8
+    } ],
+    "expectedDocument" : "Lec-3.1-Exceptions",
+    "recallAt5" : 1.0,
+    "medianMilliseconds" : 7.7851,
+    "expectedPages" : [ 4, 5 ],
+    "id" : "Q1",
+    "firstRelevantRank" : 1,
+    "query" : "What is the catch or specify requirement for checked exceptions?"
+  }, {
+    "ranking" : [ {
+      "from" : 11,
+      "chunk" : "Lec-3.2-Generics-and-Collections-p11-c0",
+      "score" : 27.36102,
+      "to" : 11
+    }, {
+      "from" : 1,
+      "chunk" : "Lec-3.2-Generics-and-Collections-p9-c0",
+      "score" : 15.738837,
+      "to" : 9
+    }, {
+      "from" : 10,
+      "chunk" : "Lec-3.2-Generics-and-Collections-p10-c0",
+      "score" : 13.814436,
+      "to" : 10
+    }, {
+      "from" : 20,
+      "chunk" : "Lec-2-OOP-with-Java-p20-c0",
+      "score" : 6.8855343,
+      "to" : 20
+    }, {
+      "from" : 12,
+      "chunk" : "Lec-3.3-ModernSyntax-Annotations-and-Reflection-p15-c0",
+      "score" : 6.22134,
+      "to" : 15
+    } ],
+    "expectedDocument" : "Lec-3.2-Generics-and-Collections",
+    "recallAt5" : 1.0,
+    "medianMilliseconds" : 4.2142,
+    "expectedPages" : [ 11 ],
+    "id" : "Q2",
+    "firstRelevantRank" : 1,
+    "query" : "How does type erasure replace generic type parameters?"
+  }, {
+    "ranking" : [ {
+      "from" : 10,
+      "chunk" : "Lec-3.2-Generics-and-Collections-p10-c0",
+      "score" : 13.020787,
+      "to" : 10
+    }, {
+      "from" : 12,
+      "chunk" : "Lec-3.2-Generics-and-Collections-p17-c0",
+      "score" : 8.262198,
+      "to" : 17
+    }, {
+      "from" : 1,
+      "chunk" : "Lec-3.2-Generics-and-Collections-p9-c0",
+      "score" : 6.803064,
+      "to" : 9
+    }, {
+      "from" : 16,
+      "chunk" : "Lec-4-AI-Assisted-Java-Development-p16-c0",
+      "score" : 6.1517887,
+      "to" : 16
+    }, {
+      "from" : 42,
+      "chunk" : "Lec-5-Building-AI-Powered-Java-Applications-p43-c0",
+      "score" : 6.1379776,
+      "to" : 43
+    } ],
+    "expectedDocument" : "Lec-3.2-Generics-and-Collections",
+    "recallAt5" : 1.0,
+    "medianMilliseconds" : 3.8734,
+    "expectedPages" : [ 10 ],
+    "id" : "Q3",
+    "firstRelevantRank" : 1,
+    "query" : "When should I use unbounded wildcards List<?>?"
+  }, {
+    "ranking" : [ {
+      "from" : 3,
+      "chunk" : "Lec-3.4-JUnit-p7-c0",
+      "score" : 17.26753,
+      "to" : 7
+    }, {
+      "from" : 20,
+      "chunk" : "Lec-2-OOP-with-Java-p20-c0",
+      "score" : 6.451016,
+      "to" : 20
+    }, {
+      "from" : 30,
+      "chunk" : "Lec-4-AI-Assisted-Java-Development-p30-c0",
+      "score" : 6.1921945,
+      "to" : 30
+    }, {
+      "from" : 12,
+      "chunk" : "Lec-4-AI-Assisted-Java-Development-p13-c0",
+      "score" : 5.6879277,
+      "to" : 13
+    }, {
+      "from" : 42,
+      "chunk" : "Lec-5-Building-AI-Powered-Java-Applications-p43-c0",
+      "score" : 5.6815057,
+      "to" : 43
+    } ],
+    "expectedDocument" : "Lec-3.4-JUnit",
+    "recallAt5" : 1.0,
+    "medianMilliseconds" : 8.586,
+    "expectedPages" : [ 4 ],
+    "id" : "Q4",
+    "firstRelevantRank" : 1,
+    "query" : "How do @BeforeEach and @AfterEach prepare fixtures for every test?"
+  }, {
+    "ranking" : [ {
+      "from" : 3,
+      "chunk" : "Lec-3.4-JUnit-p7-c0",
+      "score" : 10.909641,
+      "to" : 7
+    }, {
+      "from" : 24,
+      "chunk" : "Lec-4-AI-Assisted-Java-Development-p25-c0",
+      "score" : 8.469798,
+      "to" : 25
+    }, {
+      "from" : 1,
+      "chunk" : "Lec-3.1-Exceptions-p3-c0",
+      "score" : 8.402232,
+      "to" : 3
+    }, {
+      "from" : 6,
+      "chunk" : "Lec-3.1-Exceptions-p6-c0",
+      "score" : 8.100185,
+      "to" : 6
+    }, {
+      "from" : 19,
+      "chunk" : "Lec-4-AI-Assisted-Java-Development-p19-c0",
+      "score" : 7.891006,
+      "to" : 19
+    } ],
+    "expectedDocument" : "Lec-3.4-JUnit",
+    "recallAt5" : 1.0,
+    "medianMilliseconds" : 3.0068,
+    "expectedPages" : [ 5 ],
+    "id" : "Q5",
+    "firstRelevantRank" : 1,
+    "query" : "How can assertThrows verify an expected exception?"
+  }, {
+    "ranking" : [ {
+      "from" : 7,
+      "chunk" : "Lec-3.3-ModernSyntax-Annotations-and-Reflection-p11-c0",
+      "score" : 12.106897,
+      "to" : 11
+    }, {
+      "from" : 12,
+      "chunk" : "Lec-3.3-ModernSyntax-Annotations-and-Reflection-p15-c0",
+      "score" : 7.3459864,
+      "to" : 15
+    }, {
+      "from" : 23,
+      "chunk" : "Lec-2-OOP-with-Java-p29-c0",
+      "score" : 6.218777,
+      "to" : 29
+    }, {
+      "from" : 7,
+      "chunk" : "Lec-2-OOP-with-Java-p7-c0",
+      "score" : 4.8093066,
+      "to" : 7
+    }, {
+      "from" : 6,
+      "chunk" : "Lec-2-OOP-with-Java-p6-c0",
+      "score" : 4.611182,
+      "to" : 6
+    } ],
+    "expectedDocument" : "Lec-3.3-ModernSyntax-Annotations-and-Reflection",
+    "recallAt5" : 1.0,
+    "medianMilliseconds" : 5.0143,
+    "expectedPages" : [ 10 ],
+    "id" : "Q6",
+    "firstRelevantRank" : 1,
+    "query" : "How does reflection Class.forName retrieve declared methods?"
+  }, {
+    "ranking" : [ {
+      "from" : 26,
+      "chunk" : "Lec-4-AI-Assisted-Java-Development-p26-c0",
+      "score" : 11.398517,
+      "to" : 26
+    }, {
+      "from" : 12,
+      "chunk" : "Lec-4-AI-Assisted-Java-Development-p13-c0",
+      "score" : 10.582288,
+      "to" : 13
+    }, {
+      "from" : 14,
+      "chunk" : "Lec-4-AI-Assisted-Java-Development-p14-c0",
+      "score" : 10.228044,
+      "to" : 14
+    }, {
+      "from" : 7,
+      "chunk" : "Lec-4-AI-Assisted-Java-Development-p8-c0",
+      "score" : 10.094193,
+      "to" : 8
+    }, {
+      "from" : 22,
+      "chunk" : "Lec-4-AI-Assisted-Java-Development-p22-c0",
+      "score" : 9.835316,
+      "to" : 22
+    } ],
+    "expectedDocument" : "Lec-4-AI-Assisted-Java-Development",
+    "recallAt5" : 1.0,
+    "medianMilliseconds" : 5.5952,
+    "expectedPages" : [ 12, 13, 14 ],
+    "id" : "Q7",
+    "firstRelevantRank" : 2,
+    "query" : "What belongs in spec.md plan tasks and checklist before implementing?"
+  }, {
+    "ranking" : [ {
+      "from" : 20,
+      "chunk" : "Lec-5-Building-AI-Powered-Java-Applications-p21-c0",
+      "score" : 23.128567,
+      "to" : 21
+    }, {
+      "from" : 18,
+      "chunk" : "Lec-4-AI-Assisted-Java-Development-p18-c0",
+      "score" : 8.966585,
+      "to" : 18
+    }, {
+      "from" : 29,
+      "chunk" : "Lec-5-Building-AI-Powered-Java-Applications-p30-c0",
+      "score" : 8.391464,
+      "to" : 30
+    }, {
+      "from" : 33,
+      "chunk" : "Lec-4-AI-Assisted-Java-Development-p33-c0",
+      "score" : 8.2356205,
+      "to" : 33
+    }, {
+      "from" : 15,
+      "chunk" : "Lec-5-Building-AI-Powered-Java-Applications-p15-c0",
+      "score" : 7.5679336,
+      "to" : 15
+    } ],
+    "expectedDocument" : "Lec-5-Building-AI-Powered-Java-Applications",
+    "recallAt5" : 1.0,
+    "medianMilliseconds" : 4.1024,
+    "expectedPages" : [ 21 ],
+    "id" : "Q8",
+    "firstRelevantRank" : 1,
+    "query" : "Why must Bob with average 50 not receive LOW risk?"
+  }, {
+    "ranking" : [ {
+      "from" : 28,
+      "chunk" : "Lec-5-Building-AI-Powered-Java-Applications-p28-c0",
+      "score" : 24.8765,
+      "to" : 28
+    }, {
+      "from" : 20,
+      "chunk" : "Lec-5-Building-AI-Powered-Java-Applications-p21-c0",
+      "score" : 11.795617,
+      "to" : 21
+    }, {
+      "from" : 22,
+      "chunk" : "Lec-5-Building-AI-Powered-Java-Applications-p23-c0",
+      "score" : 11.4937105,
+      "to" : 23
+    }, {
+      "from" : 39,
+      "chunk" : "Lec-5-Building-AI-Powered-Java-Applications-p40-c0",
+      "score" : 10.008617,
+      "to" : 40
+    }, {
+      "from" : 15,
+      "chunk" : "Lec-5-Building-AI-Powered-Java-Applications-p15-c0",
+      "score" : 9.232927,
+      "to" : 15
+    } ],
+    "expectedDocument" : "Lec-5-Building-AI-Powered-Java-Applications",
+    "recallAt5" : 1.0,
+    "medianMilliseconds" : 3.7249,
+    "expectedPages" : [ 28 ],
+    "id" : "Q9",
+    "firstRelevantRank" : 1,
+    "query" : "Why reject evidence maps-9 or a passage never supplied to the model?"
+  }, {
+    "ranking" : [ {
+      "from" : 6,
+      "chunk" : "Lec-2-OOP-with-Java-p6-c0",
+      "score" : 4.611182,
+      "to" : 6
+    }, {
+      "from" : 42,
+      "chunk" : "Lec-5-Building-AI-Powered-Java-Applications-p43-c0",
+      "score" : 3.650973,
+      "to" : 43
+    }, {
+      "from" : 20,
+      "chunk" : "Lec-2-OOP-with-Java-p20-c0",
+      "score" : 3.4427671,
+      "to" : 20
+    }, {
+      "from" : 5,
+      "chunk" : "Lec-2-OOP-with-Java-p5-c0",
+      "score" : 1.4847537,
+      "to" : 5
+    }, {
+      "from" : 24,
+      "chunk" : "Lec-1-Java-Fundamentals-p26-c0",
+      "score" : 1.3601756,
+      "to" : 26
+    } ],
+    "expectedDocument" : "-",
+    "recallAt5" : 0.0,
+    "medianMilliseconds" : 3.4133,
+    "expectedPages" : [ ],
+    "id" : "N1",
+    "firstRelevantRank" : 0,
+    "query" : "How to cook spaghetti carbonara?"
+  } ]
+}

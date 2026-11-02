@@ -14,7 +14,7 @@ import java.util.regex.Pattern;
  */
 public final class CitationVerifier {
 
-    private static final Pattern CITE = Pattern.compile("\\{\\{cite:([A-Za-z0-9_\\-]+)#(\\d+)\\}\\}");
+    private static final Pattern CITE = Pattern.compile("\\{\\{cite:([^{}\\r\\n]*)\\}\\}");
 
     private CitationVerifier() {
     }
@@ -34,23 +34,36 @@ public final class CitationVerifier {
         boolean citationSurvived = false;
         int last = 0;
         while (matcher.find()) {
-            String docId = matcher.group(1);
-            int page = Integer.parseInt(matcher.group(2));
             sb.append(answer, last, matcher.end() - matcher.group(0).length());
-            KnowledgeChunk match = find(retrieved, docId, page);
-            if (match != null) {
-                sb.append('[').append(match.citationLabel()).append(']');
+            String label = sourceLabel(matcher.group(1), retrieved);
+            if (label != null) {
+                sb.append('[').append(label).append(']');
                 citationSurvived = true;
             }
             last = matcher.end();
         }
         sb.append(answer.substring(last));
-        String result = sb.toString().replaceAll("  +", " ");
+        String result = sb.toString();
         if (!citationSurvived) {
             result = result + "\n\n(Note: no verifiable course citation survived verification; "
                     + "inspect the Sources list.)";
         }
         return result;
+    }
+
+    /** Resolves only a document/page pair supplied in this request, never a model-invented source. */
+    public static String sourceLabel(String reference, List<KnowledgeChunk> retrieved) {
+        if (reference == null || retrieved == null) return null;
+        int separator = reference.lastIndexOf('#');
+        if (separator <= 0) return null;
+        try {
+            String pageText = reference.substring(separator + 1);
+            if (!pageText.matches("[0-9]+")) return null;
+            KnowledgeChunk match = find(retrieved, reference.substring(0, separator), Integer.parseInt(pageText));
+            return match == null ? null : match.citationLabel();
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 
     private static KnowledgeChunk find(List<KnowledgeChunk> retrieved, String docId, int page) {
@@ -63,7 +76,7 @@ public final class CitationVerifier {
     }
 
     private static String stripTokens(String answer) {
-        return CITE.matcher(answer).replaceAll("").replaceAll("  +", " ").trim();
+        return CITE.matcher(answer).replaceAll("").strip();
     }
 
     private static String ensureDisclaimer(String answer) {

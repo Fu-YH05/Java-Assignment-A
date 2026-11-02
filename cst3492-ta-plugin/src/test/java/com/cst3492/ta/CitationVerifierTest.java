@@ -63,4 +63,31 @@ class CitationVerifierTest {
         String input = PromptBuilder.GENERAL_DISCLAIMER + "\n\nBeans live in the container.";
         assertEquals(input, CitationVerifier.verify(input, List.of()));
     }
+
+    @Test
+    void filenamesWithPunctuationUnicodeSpacesAndHashesAreSupported() {
+        for (String name : List.of("Lec-3.1-Exceptions", "Lecture 1 (Java)", "课程#第一讲")) {
+            var sources = List.of(chunk(name, name + ".pdf", 2, 3));
+            assertTrue(CitationVerifier.verify("X {{cite:" + name + "#2}}", sources).contains(name + ".pdf"));
+            assertEquals(name + ".pdf, pp.2-3", CitationVerifier.sourceLabel(name + "#3", sources));
+            assertEquals(null, CitationVerifier.sourceLabel(name + "#4", sources));
+        }
+    }
+
+    @Test
+    void malformedAndOverflowingReferencesAreRemovedWithoutCrashing() {
+        var sources = List.of(chunk("lec", "lec.pdf", 1, 1));
+        String result = CitationVerifier.verify("X {{cite:lec#99999999999999999999}} {{cite:bad}}", sources);
+        assertFalse(result.contains("{{cite:"));
+        assertEquals(null, CitationVerifier.sourceLabel("fake#1", sources));
+        assertEquals(null, CitationVerifier.sourceLabel("lec#1", List.of()));
+    }
+
+    @Test
+    void verificationPreservesCodeIndentationAndParagraphBreaks() {
+        String code = "```java\nclass A {\n    void run() {}\n}\n```\n\nNext paragraph.";
+        assertTrue(CitationVerifier.verify(code + " {{cite:lec#1}}",
+                List.of(chunk("lec", "lec.pdf", 1, 1))).contains(code));
+        assertTrue(CitationVerifier.verify(code, List.of()).contains(code));
+    }
 }

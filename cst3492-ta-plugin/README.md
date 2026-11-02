@@ -23,13 +23,23 @@ HTTP error statuses as successful connections.
 
 ## Build and verification
 
-Requires JDK 21 and Gradle 8.14. Run `gradle test buildPlugin` from this folder. The target IDE
+Requires JDK 21. Run `gradlew.bat test buildPlugin` (Windows) or `./gradlew test buildPlugin`
+(macOS/Linux) from this folder; the wrapper selects Gradle 8.14. The target IDE
 is IntelliJ IDEA Community 2024.2.6. The ZIP is written to `build/distributions`.
 
 The tests include short-page text preservation, accurate window page ranges, immediate retrieval
 after the first build, refresh after material changes, model/provider changes, and preservation
 of the previous active snapshot when embedding fails during a rebuild. Index tests use local PDF
 fixtures and deterministic embeddings; they do not need credentials or contact real providers.
+
+## Revision verification
+
+See [the verification supplement](verification/REPORT.md) for citation fixes, independent test-file
+creation, cancellable tasks, complete staged-diff summarization, and a real-corpus BM25 benchmark.
+The benchmark includes a failing unrelated-question case; it does not establish LLM answer quality.
+Chat supports an escaped Markdown subset. Generated tests are syntax-checked and saved to a new
+file after preview, rather than inserted into production code. Use the chat Cancel button or the
+IDE background-task controls to cancel requests. Larger diffs require multiple model calls.
 
 For manual acceptance, configure both real keys, build an index, ask a question immediately,
 verify its source pages, then ask a custom question about selected Java code. Change a PDF and

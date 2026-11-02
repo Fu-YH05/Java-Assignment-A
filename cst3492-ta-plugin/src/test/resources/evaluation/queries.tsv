@@ -1,0 +1,11 @@
+id	query	document	pages
+Q1	What is the catch or specify requirement for checked exceptions?	Lec-3.1-Exceptions	4,5
+Q2	How does type erasure replace generic type parameters?	Lec-3.2-Generics-and-Collections	11
+Q3	When should I use unbounded wildcards List<?>?	Lec-3.2-Generics-and-Collections	10
+Q4	How do @BeforeEach and @AfterEach prepare fixtures for every test?	Lec-3.4-JUnit	4
+Q5	How can assertThrows verify an expected exception?	Lec-3.4-JUnit	5
+Q6	How does reflection Class.forName retrieve declared methods?	Lec-3.3-ModernSyntax-Annotations-and-Reflection	10
+Q7	What belongs in spec.md plan tasks and checklist before implementing?	Lec-4-AI-Assisted-Java-Development	12,13,14
+Q8	Why must Bob with average 50 not receive LOW risk?	Lec-5-Building-AI-Powered-Java-Applications	21
+Q9	Why reject evidence maps-9 or a passage never supplied to the model?	Lec-5-Building-AI-Powered-Java-Applications	28
+N1	How to cook spaghetti carbonara?	-	-

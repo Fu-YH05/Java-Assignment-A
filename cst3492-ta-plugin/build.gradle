@@ -4,7 +4,7 @@ plugins {
 }
 
 group = 'com.cst3492'
-version = '1.0.0'
+version = '1.1.0'
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -21,6 +21,7 @@ repositories {
 dependencies {
     intellijPlatform {
         intellijIdeaCommunity('2024.2.6')
+        bundledPlugin('com.intellij.java')
     }
     implementation 'org.apache.pdfbox:pdfbox:2.0.31'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
@@ -41,3 +42,17 @@ tasks.withType(Test).configureEach { useJUnitPlatform() }
 
 buildSearchableOptions { enabled = false }
 jarSearchableOptions { enabled = false }
+
+tasks.register('evaluateRetrieval', JavaExec) {
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'com.cst3492.ta.evaluation.RetrievalEvaluation'
+    doFirst {
+        if (!project.hasProperty('evaluationIndex')) {
+            throw new GradleException('Pass -PevaluationIndex=/path/to/local/index')
+        }
+        args project.property('evaluationIndex'),
+                file('src/test/resources/evaluation/queries.tsv').absolutePath,
+                layout.buildDirectory.file('reports/evaluation/results.json').get().asFile.absolutePath
+    }
+}

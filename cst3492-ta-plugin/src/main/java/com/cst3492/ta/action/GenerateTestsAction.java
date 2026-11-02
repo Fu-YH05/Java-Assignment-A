@@ -1,6 +1,5 @@
 package com.cst3492.ta.action;
 
-import com.cst3492.ta.config.TaSettingsState;
 import com.cst3492.ta.llm.LlmClient;
 import com.cst3492.ta.llm.Message;
 import com.cst3492.ta.service.TaProjectService;
@@ -9,12 +8,10 @@ import com.intellij.openapi.actionSystem.AnActionEvent;
 import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Editor;
-import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.openapi.ui.ValidationInfo;
-import com.intellij.psi.PsiDocumentManager;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -46,34 +43,31 @@ public final class GenerateTestsAction extends AnAction {
             return;
         }
         String scenario = dialog.getScenario();
-        String psiContext = readSelectedCode(editor);
+        String psiContext = editor == null ? null : editor.getDocument().getText();
+        String selectedContext = readSelectedCode(editor);
+        com.intellij.openapi.module.Module module = e.getData(com.intellij.openapi.actionSystem.LangDataKeys.MODULE);
 
-        new Thread(() -> {
-            try {
-                LlmClient client = TaProjectService.getInstance(project).llmClient();
-                TaSettingsState s = TaSettingsState.getInstance();
-                String system = """
-                        You generate JUnit 5 tests for Java classes.
-                        Return only Java source code: one complete test class with package and imports.
-                        Use JUnit 5 (org.junit.jupiter.api), assertions from org.junit.jupiter.api.Assertions.
-                        Cover the given scenario including boundary cases. Do not invent dependencies.
-                        """;
-                String user = "Class under test:\n```java\n"
-                        + (psiContext == null || psiContext.isBlank()
-                        ? "(not available; infer a reasonable class from the scenario)" : psiContext)
-                        + "\n```\nTest scenario: " + scenario;
-                String code = client.complete(
-                        List.of(new Message("system", system), new Message("user", user)),
-                        0.1, 2000);
-                String className = firstClassName(code, "GeneratedTest");
-                SwingUtilities.invokeLater(() -> new PreviewDialog(project, code, className).show());
-            } catch (Exception ex) {
-                SwingUtilities.invokeLater(() -> Messages.showErrorDialog(
-                        project, ex.getMessage() == null ? ex.toString() : ex.getMessage(),
-                        "CST3492 TA: Test Generation Failed"));
-            }
-        }).start();
+        com.cst3492.ta.util.BackgroundWork.run(project, "CST3492 TA: Generate Tests", indicator -> {
+            LlmClient client = TaProjectService.getInstance(project).llmClient();
+            String system = """
+                    You generate JUnit 5 tests for Java classes.
+                    Return only Java source code: one complete test class with package and imports.
+                    Use JUnit 5 (org.junit.jupiter.api), assertions from org.junit.jupiter.api.Assertions.
+                    Cover the given scenario including boundary cases. Do not invent dependencies.
+                    """;
+            String user = "Class under test:\n```java\n"
+                    + (psiContext == null || psiContext.isBlank()
+                    ? "(not available; infer a reasonable class from the scenario)" : psiContext)
+                    + "\n```\nSelected method or code:\n" + selectedContext + "\nTest scenario: " + scenario;
+            String code = client.complete(
+                    List.of(new Message("system", system), new Message("user", user)),
+                    0.1, 2000);
+            String className = firstClassName(code, "GeneratedTest");
+            return new GeneratedDraft(code, className);
+        }, result -> new PreviewDialog(project, module, result.code(), result.className()).show());
     }
+
+    private record GeneratedDraft(String code, String className) {}
 
     private static String readSelectedCode(Editor editor) {
         if (editor == null) {
@@ -123,18 +117,18 @@ public final class GenerateTestsAction extends AnAction {
         }
     }
 
-    /** Preview with Copy and Insert-at-caret actions; production code is never modified. */
+    /** Saves a new file under the chosen test source root; never overwrites an existing file. */
     private static final class PreviewDialog extends DialogWrapper {
         private final Project project;
+        private final com.intellij.openapi.module.Module module;
         private final JTextArea area = new JTextArea(24, 72);
-        private final String className;
 
-        PreviewDialog(Project project, String code, String className) {
+        PreviewDialog(Project project, com.intellij.openapi.module.Module module, String code, String className) {
             super(project);
             this.project = project;
-            this.className = className;
+            this.module = module;
             setTitle("Generated Test: " + className);
-            setOKButtonText("Insert at Caret");
+            setOKButtonText("Create Test File");
             init();
             area.setText(code);
             area.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 13));
@@ -162,22 +156,69 @@ public final class GenerateTestsAction extends AnAction {
 
         @Override
         protected void doOKAction() {
-            doInsert(project, area.getText());
-            super.doOKAction();
+            try {
+                if (createTestFile()) super.doOKAction();
+            } catch (Exception ex) {
+                Messages.showErrorDialog(project, ex.getMessage(), "Cannot Create Test File");
+            }
         }
 
-        private void doInsert(Project p, String code) {
-            Editor editor = com.intellij.openapi.fileEditor.FileEditorManager.getInstance(p)
-                    .getSelectedTextEditor();
-            if (editor == null) {
-                return;
+        private boolean createTestFile() {
+            var draft = com.cst3492.ta.util.GeneratedTestSource.parse(area.getText());
+            var parsed = com.intellij.psi.PsiFileFactory.getInstance(project).createFileFromText(
+                    draft.className() + ".java", com.intellij.ide.highlighter.JavaFileType.INSTANCE, draft.code());
+            if (!(parsed instanceof com.intellij.psi.PsiJavaFile javaFile)
+                    || com.intellij.psi.util.PsiTreeUtil.findChildOfType(parsed, com.intellij.psi.PsiErrorElement.class) != null
+                    || javaFile.getClasses().length == 0) {
+                throw new IllegalArgumentException("Generated Java has syntax errors. Edit the preview before saving.");
             }
-            Document document = editor.getDocument();
-            WriteCommandAction.runWriteCommandAction(p, () -> {
-                int offset = editor.getCaretModel().getOffset();
-                document.insertString(offset, "\n" + code + "\n");
-                PsiDocumentManager.getInstance(p).commitDocument(document);
+            var publicTypes = java.util.Arrays.stream(javaFile.getClasses())
+                    .filter(c -> c.hasModifierProperty(com.intellij.psi.PsiModifier.PUBLIC)).toList();
+            if (publicTypes.size() > 1) throw new IllegalArgumentException("Multiple public top-level classes are not allowed.");
+            var targetClass = publicTypes.isEmpty() ? javaFile.getClasses()[0] : publicTypes.get(0);
+            if (targetClass.isInterface() || targetClass.isEnum() || targetClass.isRecord()) {
+                throw new IllegalArgumentException("Expected a Java test class.");
+            }
+            var source = new com.cst3492.ta.util.GeneratedTestSource(draft.code(), javaFile.getPackageName(), targetClass.getName());
+            java.util.List<com.intellij.openapi.vfs.VirtualFile> roots = new java.util.ArrayList<>();
+            if (module != null) {
+                for (var root : com.intellij.openapi.roots.ModuleRootManager.getInstance(module).getSourceRoots(true)) {
+                    if (com.intellij.openapi.roots.ProjectRootManager.getInstance(project).getFileIndex()
+                            .isInTestSourceContent(root)) roots.add(root);
+                }
+            }
+            String defaultRoot = roots.size() == 1 ? roots.get(0).getPath()
+                    : project.getBasePath() + "/src/test/java";
+            String path = Messages.showInputDialog(project,
+                    "Test source root (file: " + source.relativePath() + "):",
+                    "Choose Test Source Folder", null, defaultRoot, null);
+            if (path == null || path.isBlank()) return false;
+            java.nio.file.Path rootPath = java.nio.file.Path.of(path).toAbsolutePath().normalize();
+            java.nio.file.Path projectPath = java.nio.file.Path.of(project.getBasePath()).toAbsolutePath().normalize();
+            if (!rootPath.startsWith(projectPath)) {
+                throw new IllegalArgumentException("Choose a test source folder inside this project.");
+            }
+            WriteCommandAction.runWriteCommandAction(project, () -> {
+                try {
+                    var root = com.intellij.openapi.vfs.VfsUtil.createDirectoryIfMissing(rootPath.toString());
+                    if (root == null) throw new IllegalStateException("Cannot create test folder.");
+                    var directory = root;
+                    if (!source.packageName().isEmpty()) {
+                        for (String part : source.packageName().split("\\.")) {
+                            var child = directory.findChild(part);
+                            directory = child == null ? directory.createChildDirectory(this, part) : child;
+                        }
+                    }
+                    String name = source.className() + ".java";
+                    if (directory.findChild(name) != null) throw new IllegalArgumentException("File already exists: " + name);
+                    var file = directory.createChildData(this, name);
+                    com.intellij.openapi.vfs.VfsUtil.saveText(file, source.code() + "\n");
+                    com.intellij.openapi.fileEditor.FileEditorManager.getInstance(project).openFile(file, true);
+                } catch (java.io.IOException ex) {
+                    throw new IllegalStateException("Cannot save test file: " + ex.getMessage(), ex);
+                }
             });
+            return true;
         }
     }
 }

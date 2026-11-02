@@ -1,6 +1,7 @@
 package com.cst3492.ta.action;
 
 import com.cst3492.ta.llm.LlmClient;
+import com.cst3492.ta.citation.CitationVerifier;
 import com.cst3492.ta.llm.Message;
 import com.cst3492.ta.model.KnowledgeChunk;
 import com.cst3492.ta.service.TaProjectService;
@@ -43,8 +44,7 @@ public final class ReviewCodeAction extends AnAction {
             return;
         }
         String code = editor.getSelectionModel().getSelectedText();
-        new Thread(() -> {
-            try {
+        com.cst3492.ta.util.BackgroundWork.run(project, "CST3492 TA: Review Code", indicator -> {
                 List<KnowledgeChunk> courseChunks =
                         TaProjectService.getInstance(project).retrieveForContext(code);
                 LlmClient client = TaProjectService.getInstance(project).llmClient();
@@ -71,19 +71,17 @@ public final class ReviewCodeAction extends AnAction {
                         List.of(new Message("system", system), new Message("user", user)),
                         0.2, 1500);
                 JsonNode findings = JsonUtil.mapper().readTree(json).path("findings");
-                SwingUtilities.invokeLater(() -> new FindingsDialog(project, findings).show());
-            } catch (Exception ex) {
-                SwingUtilities.invokeLater(() -> Messages.showErrorDialog(
-                        project, ex.getMessage() == null ? ex.toString() : ex.getMessage(),
-                        "CST3492 TA: Review Failed"));
-            }
-        }).start();
+                if (!findings.isArray()) throw new IllegalStateException("Invalid review response: findings must be an array.");
+                return new ReviewResult(findings, courseChunks);
+        }, result -> new FindingsDialog(project, result.findings(), result.sources()).show());
     }
+
+    private record ReviewResult(JsonNode findings, List<KnowledgeChunk> sources) {}
 
     private static final class FindingsDialog extends DialogWrapper {
         private final JTextArea area = new JTextArea(18, 66);
 
-        FindingsDialog(Project project, JsonNode findings) {
+        FindingsDialog(Project project, JsonNode findings, List<KnowledgeChunk> sources) {
             super(project);
             setTitle("Course-Aware Code Review");
             setOKButtonText("Close");
@@ -102,11 +100,16 @@ public final class ReviewCodeAction extends AnAction {
                     JsonNode citation = f.path("citation");
                     if (!citation.isMissingNode() && !citation.isNull()
                             && !citation.asText().isBlank()) {
-                        sb.append("   Source: ").append(citation.asText()).append('\n');
+                        String label = CitationVerifier.sourceLabel(citation.asText(), sources);
+                        sb.append(label == null ? "   Source: Unverified reference removed."
+                                : "   Source: " + label).append('\n');
+                    } else {
+                        sb.append("   Source: General knowledge; no verified course reference.\n");
                     }
                     sb.append('\n');
                 }
             }
+            if (sources.isEmpty()) sb.insert(0, com.cst3492.ta.prompt.PromptBuilder.GENERAL_DISCLAIMER + "\n\n");
             area.setText(sb.toString());
             area.setEditable(false);
             area.setLineWrap(true);
