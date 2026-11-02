@@ -36,6 +36,28 @@ public final class PromptBuilder {
                 """.stripIndent().formatted(GENERAL_DISCLAIMER);
     }
 
+    /** Single retry turn used when a grounded reply contained no verifiable citation. */
+    public static String citationRetryHint() {
+        return """
+                Your previous answer contained no valid {{cite:docId#page}} token.
+                Answer again using only the numbered excerpts above.
+                Cite each course-specific claim with {{cite:docId#page}} copied from an excerpt header.
+                If the excerpts are insufficient, begin the answer with:
+                "%s"
+                """.stripIndent().formatted(GENERAL_DISCLAIMER).strip();
+    }
+
+    /** Single retry turn used when the provider returned HTTP 200 with no visible answer text. */
+    public static String emptyAnswerRetryHint() {
+        return """
+                Your previous reply was empty.
+                Answer the question now in complete sentences.
+                When course excerpts are provided, cite each course-specific claim with
+                {{cite:docId#page}} copied from an excerpt header. If they are insufficient, begin with:
+                "%s"
+                """.stripIndent().formatted(GENERAL_DISCLAIMER).strip();
+    }
+
     public static String userPrompt(String question, String codeContext, List<KnowledgeChunk> chunks) {
         StringBuilder sb = new StringBuilder();
         sb.append("Question: ").append(question).append('\n');

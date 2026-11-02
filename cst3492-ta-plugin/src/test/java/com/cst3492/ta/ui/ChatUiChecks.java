@@ -11,6 +11,7 @@ public final class ChatUiChecks {
     public static void main(String[] args) {
         var request = LauncherDiscoveryRequestBuilder.request().selectors(
                 DiscoverySelectors.selectClass(ChatViewTest.class),
+                DiscoverySelectors.selectClass(ChatHistoryViewTest.class),
                 DiscoverySelectors.selectClass(MarkdownContentTest.class),
                 DiscoverySelectors.selectClass("com.cst3492.ta.CitationVerifierTest")).build();
         var listener = new SummaryGeneratingListener();

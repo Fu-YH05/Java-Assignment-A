@@ -12,7 +12,10 @@ and page ranges retrieved for that request. Document IDs may contain dots, space
 Unicode and hash characters; the final hash separates the page number. Unknown documents,
 out-of-range pages, malformed values and overflowing numbers are rejected. Code review displays
 an explicit unverified-reference notice instead of the model's raw citation. Empty retrieval
-adds the general-knowledge disclaimer. A citation check establishes source membership, not that
+adds the general-knowledge disclaimer. When excerpts were retrieved but the reply contains no
+verifiable citation, the service performs one controlled retry with an explicit citation
+instruction; if the retry also produces no verified citation, the answer carries an
+"Unverified" notice. A citation check establishes source membership, not that
 the source actually supports every sentence; semantic correctness still requires review.
 
 ### Test file creation
@@ -56,9 +59,10 @@ is not a concurrent read/write index implementation.
 
 Chat identifies selected-code questions and displays the submitted code snapshot. Its inert HTML
 renderer supports paragraphs/line breaks, inline code and bold. Raw HTML is escaped; links/scripts
-are not executed. Top-level fenced and indented code blocks are promoted to a syntax-highlighted,
-copyable component; code nested inside list items or blockquotes still uses the plain HTML subset.
-This remains a deliberately small Markdown subset, not a full Markdown engine.
+are not executed. Fenced and indented code blocks are promoted to a syntax-highlighted, copyable
+component, including blocks nested inside list items and blockquotes; the surrounding list or
+quote text stays in the inert HTML renderer. This remains a deliberately small Markdown subset,
+not a full Markdown engine.
 
 ## Design choices
 
@@ -132,15 +136,20 @@ call either provider. Rerunning on a different corpus requires reviewing the gol
 
 ## Automated verification
 
-Release 1.1.0 passed the Gradle `test buildPlugin` build: 59 JUnit tests, zero failures and zero
-errors, plus 25 offline chat UI checks run by the separate `chatUiTest` task. The JUnit suite runs
-under the IntelliJ test bootstrap; `chatUiTest` executes the same view classes directly without it,
-so the two suites are separate and their counts are not subsets. The JUnit suite covers citation
-identity/ranges and preserved indentation, file identity extraction, full diff partitioning and
-reduction, cancellation interrupting the worker, safe rendering (including nested image filtering),
-and the earlier indexing/retrieval regressions. Neither suite performs the interactive PSI/file
-writing workflow or contacts providers. The final plugin ZIP was checked for the 1.1.0 descriptor
-and new implementation classes.
+On 3 November 2026 the current working tree passed Gradle `test chatUiTest buildPlugin`:
+71 JUnit tests and 33 offline chat UI checks, with zero failures/errors/skips. The JUnit suite runs
+under the IntelliJ test bootstrap; `chatUiTest` executes four of the same classes (ChatViewTest,
+ChatHistoryViewTest, MarkdownContentTest and CitationVerifierTest) directly without it. The 33
+checks repeat part of the 71 JUnit cases; the counts must not be added as distinct tests.
+The JUnit suite covers project-isolated history storage, snapshot independence, invalid files,
+interrupted-request recovery, conversation drafts/sources, same-turn retries and scroll navigation,
+citation identity/ranges and preserved indentation, the one-shot
+retry decision including an empty reply, an empty reply reported as a request error, and explicit
+unverified marking, file identity extraction, full diff partitioning and reduction, cancellation
+interrupting the worker, safe rendering (including nested image filtering and nested code
+promotion), and the earlier indexing/retrieval regressions. Neither suite performs the interactive
+PSI/file writing workflow or contacts providers. The final plugin ZIP was checked for the 1.1.0
+descriptor and new implementation classes.
 
 ## Manual acceptance checklist
 

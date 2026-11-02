@@ -1,9 +1,13 @@
 package com.cst3492.ta.ui;
 
+import org.commonmark.node.BlockQuote;
 import org.commonmark.node.FencedCodeBlock;
 import org.commonmark.node.Image;
 import org.commonmark.node.IndentedCodeBlock;
+import org.commonmark.node.ListBlock;
+import org.commonmark.node.ListItem;
 import org.commonmark.node.Node;
+import org.commonmark.node.OrderedList;
 import org.commonmark.node.StrongEmphasis;
 import org.commonmark.node.Text;
 import org.commonmark.parser.Parser;
@@ -34,18 +38,140 @@ final class MarkdownContent extends JPanel {
         // Remote images in model output must not trigger background network requests.
         StringBuilder prose = new StringBuilder();
         for (Node node = document.getFirstChild(); node != null; node = node.getNext()) {
-            if (node instanceof FencedCodeBlock code) {
-                flush(prose, linkHandler);
-                String language = code.getInfo().isBlank() ? "Code" : code.getInfo().split("\\s+", 2)[0];
-                add(new CodeBlock(code.getLiteral(), language, codeFont));
-            } else if (node instanceof IndentedCodeBlock code) {
-                flush(prose, linkHandler);
-                add(new CodeBlock(code.getLiteral(), "Code", codeFont));
-            } else {
-                prose.append(RENDERER.render(node));
-            }
+            appendBlock(node, prose, linkHandler, codeFont);
         }
         flush(prose, linkHandler);
+    }
+
+    /**
+     * Renders one block. Containers that hold a code block are split so the code keeps the real
+     * {@link CodeBlock} widget (highlighting, Copy, independent scrolling) instead of plain HTML.
+     */
+    private void appendBlock(Node node, StringBuilder prose, Consumer<String> links, Font codeFont) {
+        if (node instanceof FencedCodeBlock code) {
+            flush(prose, links);
+            String language = code.getInfo().isBlank() ? "Code" : code.getInfo().split("\\s+", 2)[0];
+            add(new CodeBlock(code.getLiteral(), language, codeFont));
+        } else if (node instanceof IndentedCodeBlock code) {
+            flush(prose, links);
+            add(new CodeBlock(code.getLiteral(), "Code", codeFont));
+        } else if (node instanceof BlockQuote quote && containsCode(quote)) {
+            appendQuote(quote, prose, links, codeFont);
+        } else if (node instanceof ListBlock list && containsCode(list)) {
+            appendList(list, prose, links, codeFont);
+        } else {
+            prose.append(RENDERER.render(node));
+        }
+    }
+
+    private void appendQuote(BlockQuote quote, StringBuilder prose, Consumer<String> links, Font codeFont) {
+        StringBuilder quoted = new StringBuilder();
+        for (Node child = quote.getFirstChild(); child != null; child = child.getNext()) {
+            if (containsCode(child)) {
+                flushQuoted(quoted, prose);
+                appendBlock(child, prose, links, codeFont);
+            } else {
+                quoted.append(RENDERER.render(child));
+            }
+        }
+        flushQuoted(quoted, prose);
+    }
+
+    private void flushQuoted(StringBuilder quoted, StringBuilder prose) {
+        if (!quoted.isEmpty()) {
+            prose.append("<blockquote>").append(quoted).append("</blockquote>");
+            quoted.setLength(0);
+        }
+    }
+
+    private void appendList(ListBlock list, StringBuilder prose, Consumer<String> links, Font codeFont) {
+        int ordinal = list instanceof OrderedList ordered ? ordered.getStartNumber() : 1;
+        Node child = list.getFirstChild();
+        while (child != null) {
+            if (!(child instanceof ListItem item)) {
+                prose.append(RENDERER.render(child));
+                child = child.getNext();
+                continue;
+            }
+            if (containsCode(item)) {
+                appendListItem(list, item, ordinal, prose, links, codeFont);
+            } else {
+                // Group consecutive code-free items so ordered numbering stays continuous.
+                StringBuilder items = new StringBuilder();
+                int runStart = ordinal;
+                do {
+                    items.append(RENDERER.render(child));
+                    child = child.getNext();
+                    ordinal++;
+                } while (child instanceof ListItem next && !containsCode(next));
+                prose.append(listTag(list, runStart)).append(items).append(closeTag(list));
+                continue;
+            }
+            ordinal++;
+            child = child.getNext();
+        }
+    }
+
+    private void appendListItem(ListBlock list, ListItem item, int ordinal, StringBuilder prose,
+                                Consumer<String> links, Font codeFont) {
+        // The marker is emitted before the first nested code block, so a step that starts with
+        // code keeps its number. Text after a block is indented as an item continuation.
+        boolean markerPending = true;
+        StringBuilder run = new StringBuilder();
+        for (Node child = item.getFirstChild(); child != null; child = child.getNext()) {
+            if (!containsCode(child)) {
+                run.append(RENDERER.render(child));
+                continue;
+            }
+            if (markerPending) {
+                if (run.isEmpty()) {
+                    prose.append(listTag(list, ordinal)).append("<li>&nbsp;</li>")
+                            .append(closeTag(list));
+                } else {
+                    flushItemRun(list, run, ordinal, prose);
+                }
+                markerPending = false;
+            } else {
+                flushContinuation(run, prose);
+            }
+            appendBlock(child, prose, links, codeFont);
+        }
+        if (markerPending) {
+            flushItemRun(list, run, ordinal, prose);
+        } else {
+            flushContinuation(run, prose);
+        }
+    }
+
+    private void flushItemRun(ListBlock list, StringBuilder run, int ordinal, StringBuilder prose) {
+        if (run.isEmpty()) return;
+        prose.append(listTag(list, ordinal)).append("<li>").append(run).append("</li>")
+                .append(closeTag(list));
+        run.setLength(0);
+    }
+
+    /** Text after a nested block remains visually part of its item without a second marker. */
+    private void flushContinuation(StringBuilder run, StringBuilder prose) {
+        if (run.isEmpty()) return;
+        prose.append("<blockquote>").append(run).append("</blockquote>");
+        run.setLength(0);
+    }
+
+    private static String listTag(ListBlock list, int start) {
+        return list instanceof OrderedList && start != 1
+                ? "<ol start=\"" + start + "\">" : list instanceof OrderedList ? "<ol>" : "<ul>";
+    }
+
+    private static String closeTag(ListBlock list) {
+        return list instanceof OrderedList ? "</ol>" : "</ul>";
+    }
+
+    private static boolean containsCode(Node node) {
+        if (node instanceof FencedCodeBlock || node instanceof IndentedCodeBlock) return true;
+        for (Node child = node.getFirstChild(); child != null; child = child.getNext()) {
+            if (containsCode(child)) return true;
+        }
+        return false;
     }
 
     static String html(String markdown) {

@@ -102,6 +102,27 @@ class CitationVerifierTest {
     }
 
     @Test
+    void retryIsRequestedOnlyWhenRetrievalHappenedAndNoCitationSurvived() {
+        List<KnowledgeChunk> retrieved = List.of(chunk("lec04", "Lecture04.pdf", 12, 12));
+        assertFalse(CitationVerifier.needsCitationRetry("Answer {{cite:lec04#12}}", retrieved));
+        assertTrue(CitationVerifier.needsCitationRetry("Answer without any token", retrieved));
+        assertTrue(CitationVerifier.needsCitationRetry("Answer {{cite:lec04#99}}", retrieved));
+        assertFalse(CitationVerifier.needsCitationRetry("Answer without any token", List.of()),
+                "A general-knowledge answer must not be retried");
+        assertTrue(CitationVerifier.needsCitationRetry("", retrieved),
+                "An empty grounded reply is retried once");
+        assertTrue(CitationVerifier.needsCitationRetry(null, retrieved));
+    }
+
+    @Test
+    void answerWithoutSurvivingCitationIsMarkedUnverified() {
+        List<KnowledgeChunk> retrieved = List.of(chunk("lec04", "Lecture04.pdf", 12, 12));
+        String out = CitationVerifier.verify("Answer without citations", retrieved);
+        assertTrue(out.contains("Unverified"));
+        assertTrue(out.contains("no verifiable course citation"));
+    }
+
+    @Test
     void malformedAndOverflowingCitationsCannotLeakOrCrash() {
         String input = "Claim {{cite:missing#999999999999999}} {{cite:broken#abc}}\n"
                 + "Incomplete {{cite:unclosed#1";

@@ -1,6 +1,7 @@
 package com.cst3492.ta.ui;
 
 import com.cst3492.ta.model.KnowledgeChunk;
+import com.cst3492.ta.history.ChatHistory;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -55,6 +56,26 @@ final class ChatView extends JPanel {
     private String indexDescription = "Checking index…";
     private boolean indexReady;
     private Font codeFont = new Font(Font.MONOSPACED, Font.PLAIN, 14);
+    private ChatHistory chatHistory = new ChatHistory();
+    private ChatHistory.Session session = chatHistory.active();
+    private ChatHistory.Turn activeTurn;
+    private final Map<String, JPanel> turnAnchors = new LinkedHashMap<>();
+    private final DefaultListModel<String> turnModel = new DefaultListModel<>();
+    private final JList<String> turnList = new JList<>(turnModel);
+    private final DefaultListModel<ChatHistory.Session> sessionModel = new DefaultListModel<>();
+    private final JList<ChatHistory.Session> sessionList = new JList<>(sessionModel);
+    private final JButton newConversation = MarkdownContent.smallButton("New chat");
+    private final JButton deleteConversation = MarkdownContent.smallButton("Delete chat");
+    private final JLabel historyNotice = new JLabel("Saved locally for this project");
+    private final JPanel sidebar = new JPanel(new BorderLayout(0, 7));
+    private JSplitPane conversationSplit;
+    private boolean refreshingSidebar;
+    private boolean replaying;
+    private boolean historyLoading;
+    private Consumer<ChatHistory> historyChanged = ignored -> { };
+    private final JTextField conversationSearch = new JTextField();
+    private BiConsumer<ChatHistory.Turn, Runnable> testFileHandler = (turn, done) -> done.run();
+    private final Timer draftSave = new Timer(400, event -> persistHistory());
 
     ChatView(BiConsumer<String, String> ask, Runnable buildIndex, Runnable settings, Consumer<String> openLink) {
         super(new BorderLayout(0, 0));
@@ -88,9 +109,260 @@ final class ChatView extends JPanel {
             scrollAfterChange(true, 0);
         });
         center.add(latest, BorderLayout.SOUTH);
-        add(center, BorderLayout.CENTER);
+        draftSave.setRepeats(false);
+        conversationSplit = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, navigation(), center);
+        conversationSplit.setBorder(null);
+        conversationSplit.setResizeWeight(0);
+        conversationSplit.setDividerLocation(150);
+        center.setMinimumSize(new Dimension(180, 0));
+        add(conversationSplit, BorderLayout.CENTER);
         add(composer(), BorderLayout.SOUTH);
         showEmpty();
+        refreshNavigation();
+    }
+
+    private JPanel navigation() {
+        sidebar.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 6));
+        sidebar.setMinimumSize(new Dimension(100, 0));
+        sidebar.setPreferredSize(new Dimension(150, 400));
+        turnList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        turnList.getAccessibleContext().setAccessibleName("Conversation turns");
+        sessionList.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        sessionList.getAccessibleContext().setAccessibleName("Saved conversations");
+        DefaultListCellRenderer renderer = new DefaultListCellRenderer() {
+            @Override public Component getListCellRendererComponent(JList<?> list, Object value,
+                    int position, boolean selected, boolean focus) {
+                super.getListCellRendererComponent(list, value, position, selected, focus);
+                putClientProperty("html.disable", true);
+                String title = String.valueOf(value);
+                setText(title.length() > 65 ? title.substring(0, 65) + "…" : title);
+                setToolTipText(value instanceof ChatHistory.Session saved
+                        ? title + " · " + new java.util.Date(saved.updatedAt) : title);
+                setBorder(BorderFactory.createEmptyBorder(7, 5, 7, 5));
+                return this;
+            }
+        };
+        turnList.setCellRenderer(renderer);
+        sessionList.setCellRenderer(renderer);
+        turnList.addListSelectionListener(event -> {
+            if (!event.getValueIsAdjusting() && !refreshingSidebar) jumpToTurn(turnList.getSelectedIndex());
+        });
+        sessionList.addListSelectionListener(event -> {
+            ChatHistory.Session selected = sessionList.getSelectedValue();
+            if (!event.getValueIsAdjusting() && !refreshingSidebar && selected != null
+                    && selected != session && !busy && !building && !historyLoading) openConversation(selected.id);
+        });
+        JTabbedPane tabs = new JTabbedPane();
+        tabs.addTab("Turns", new JScrollPane(turnList));
+        tabs.addTab("History", new JScrollPane(sessionList));
+        sidebar.add(tabs, BorderLayout.CENTER);
+        conversationSearch.setToolTipText("Search conversation titles and questions");
+        conversationSearch.getAccessibleContext().setAccessibleName("Search conversations");
+        JPanel searchBox = new JPanel(new BorderLayout());
+        searchBox.add(new JLabel("Search history"), BorderLayout.NORTH);
+        searchBox.add(conversationSearch, BorderLayout.CENTER);
+        sidebar.add(searchBox, BorderLayout.NORTH);
+        conversationSearch.getDocument().addDocumentListener(new DocumentListener() {
+            public void insertUpdate(DocumentEvent e) { refreshNavigation(); }
+            public void removeUpdate(DocumentEvent e) { refreshNavigation(); }
+            public void changedUpdate(DocumentEvent e) { refreshNavigation(); }
+        });
+        newConversation.addActionListener(event -> newConversation());
+        deleteConversation.addActionListener(event -> {
+            if (!busy && !building && !historyLoading && JOptionPane.showConfirmDialog(this,
+                    "Delete this saved conversation and its turns?", "Delete conversation",
+                    JOptionPane.OK_CANCEL_OPTION) == JOptionPane.OK_OPTION) deleteCurrentConversation();
+        });
+        JPanel actions = new JPanel(new GridLayout(0, 1, 0, 5));
+        actions.add(newConversation);
+        actions.add(deleteConversation);
+        historyNotice.setFont(UIManager.getFont("Label.font").deriveFont(10f));
+        actions.add(historyNotice);
+        sidebar.add(actions, BorderLayout.SOUTH);
+        return sidebar;
+    }
+
+    void setHistoryLoading(boolean loading) {
+        historyLoading = loading;
+        historyNotice.setText(loading ? "Loading history…" : "Saved locally");
+        updateControls();
+    }
+
+    void setHistoryListener(Consumer<ChatHistory> listener) { historyChanged = listener; }
+
+    void historyStorageError(String detail) {
+        historyNotice.setText("History not saved");
+        historyNotice.setToolTipText(detail);
+    }
+
+    void historyStorageSaved() {
+        historyNotice.setText("Saved locally");
+        historyNotice.setToolTipText("Conversation history is stored locally for this project.");
+    }
+
+    void flushHistory() { persistHistory(); }
+
+    void restoreHistory(ChatHistory saved) {
+        draftSave.stop();
+        chatHistory = saved;
+        chatHistory.recoverInterrupted();
+        session = chatHistory.active();
+        renderConversation();
+    }
+
+    private void persistHistory() {
+        if (replaying || historyLoading) return;
+        draftSave.stop();
+        session.draft = input.getText();
+        session.draftCode = codeContext;
+        session.updatedAt = System.currentTimeMillis();
+        historyChanged.accept(chatHistory);
+    }
+
+    private void refreshNavigation() {
+        refreshingSidebar = true;
+        try {
+            turnModel.clear();
+            int number = 0;
+            for (var turn : session.turns) {
+                turnModel.addElement((++number) + ". " + turn.question.replaceAll("\\s+", " ")
+                        + " [" + turn.status + "]");
+            }
+            sessionModel.clear();
+            String query = conversationSearch.getText().toLowerCase(java.util.Locale.ROOT);
+            chatHistory.sessions.stream().filter(s -> query.isBlank() || s.title().toLowerCase(java.util.Locale.ROOT).contains(query)
+                    || s.turns.stream().anyMatch(t -> t.question.toLowerCase(java.util.Locale.ROOT).contains(query)))
+                    .forEach(sessionModel::addElement);
+            sessionList.setSelectedValue(session, true);
+        } finally { refreshingSidebar = false; }
+    }
+
+    void jumpToTurn(int position) {
+        if (position < 0 || position >= session.turns.size()) return;
+        JPanel target = turnAnchors.get(session.turns.get(position).id);
+        if (target == null) return;
+        followBottom = false;
+        programmaticScroll = true;
+        SwingUtilities.invokeLater(() -> {
+            if (target.getParent() != messages) { programmaticScroll = false; return; }
+            history.getVerticalScrollBar().setValue(target.getY());
+            followBottom = false;
+            latest.setText("↓ Back to latest");
+            latest.setVisible(true);
+            programmaticScroll = false;
+        });
+    }
+
+    void newConversation() {
+        if (busy || building || historyLoading) return;
+        persistHistory();
+        session = chatHistory.newSession();
+        renderConversation();
+        persistHistory();
+    }
+
+    boolean isTestConversation() { return session.testTask; }
+    ChatHistory.Session testSessionSnapshot() { return session.testTask ? session : null; }
+    void setTestFileHandler(BiConsumer<ChatHistory.Turn, Runnable> handler) { testFileHandler = handler; }
+
+    void startTestConversation(String path, String packageName, String selected, String source) {
+        if (busy || building || historyLoading) {
+            JOptionPane.showMessageDialog(this, "Finish or cancel the current task before generating tests.");
+            return;
+        }
+        newConversation();
+        session.testTask = true;
+        session.sourcePath = path;
+        session.sourcePackage = packageName;
+        session.selectedCode = selected;
+        session.codeSnapshot = source;
+        renderConversation();
+        persistHistory();
+    }
+
+    void answerTest(String code) {
+        answerTest(code, "");
+    }
+
+    void answerTest(String code, String targetPath) {
+        activeTurn.testCode = code;
+        activeTurn.targetPath = targetPath;
+        answer("```java\n" + code + "\n```", List.of(), false);
+    }
+
+    private JComponent testFileActions(ChatHistory.Turn turn) {
+        JPanel actions = new JPanel(new BorderLayout(0, 5));
+        actions.setOpaque(false);
+        JButton create = MarkdownContent.smallButton(turn.filePath.isBlank() ? "Create Test File" : "Open Test File");
+        create.addActionListener(event -> {
+            if (busy || building || historyLoading) return;
+            create.setEnabled(false);
+            testFileHandler.accept(turn, () -> {
+                create.setText(turn.filePath.isBlank() ? "Create Test File" : "Open Test File");
+                create.setEnabled(true);
+                persistHistory();
+            });
+        });
+        actions.add(create, BorderLayout.NORTH);
+        JLabel path = new JLabel(turn.filePath.isBlank() ? turn.targetPath : turn.filePath);
+        path.setToolTipText(path.getText());
+        path.putClientProperty("html.disable", true);
+        actions.add(path, BorderLayout.SOUTH);
+        return actions;
+    }
+
+    void openConversation(String id) {
+        if (busy || building || historyLoading || session.id.equals(id)) return;
+        var selected = chatHistory.sessions.stream().filter(s -> s.id.equals(id)).findFirst().orElse(null);
+        if (selected == null) return;
+        persistHistory();
+        session = selected;
+        chatHistory.activeSessionId = session.id;
+        renderConversation();
+        persistHistory();
+    }
+
+    void deleteCurrentConversation() {
+        if (busy || building || historyLoading) return;
+        draftSave.stop();
+        chatHistory.sessions.remove(session);
+        if (chatHistory.sessions.isEmpty()) session = chatHistory.newSession();
+        else {
+            session = chatHistory.sessions.get(0);
+            chatHistory.activeSessionId = session.id;
+        }
+        renderConversation();
+        persistHistory();
+    }
+
+    private void renderConversation() {
+        replaying = true;
+        messages.removeAll();
+        turnAnchors.clear();
+        pending = null;
+        activeTurn = null;
+        input.setText("");
+        try {
+            for (var turn : session.turns) {
+                activeTurn = turn;
+                startRequest(turn.question, turn.code, true);
+                switch (turn.status) {
+                    case "answered" -> answer(turn.answer, turn.sources.stream().map(ChatHistory.Source::chunk).toList(), turn.grounded);
+                    case "cancelled" -> cancelled();
+                    default -> fail(turn.answer);
+                }
+            }
+            input.setText(session.draft);
+            setCodeContext(session.draftCode);
+            if (session.turns.isEmpty()) showEmpty();
+        } finally { replaying = false; }
+        followBottom = true;
+        hasNewContent = false;
+        refreshNavigation();
+        updateControls();
+        messages.revalidate();
+        messages.repaint();
+        scrollAfterChange(true, 0);
     }
 
     private JPanel toolbar() {
@@ -121,6 +393,11 @@ final class ChatView extends JPanel {
                 followBottom = true;
                 hasNewContent = false;
                 latest.setVisible(false);
+                session.turns.clear();
+                activeTurn = null;
+                turnAnchors.clear();
+                refreshNavigation();
+                persistHistory();
                 showEmpty();
                 messages.revalidate();
                 messages.repaint();
@@ -128,14 +405,32 @@ final class ChatView extends JPanel {
         });
         options.add(configure);
         options.add(clear);
+        JMenuItem navigation = new JMenuItem("Show / hide history sidebar");
+        navigation.addActionListener(event -> toggleSidebar());
+        options.add(navigation);
         more.addActionListener(event -> {
             SwingUtilities.updateComponentTreeUI(options);
-            clear.setEnabled(!busy && !building);
-            configure.setEnabled(!busy && !building);
+            clear.setEnabled(!busy && !building && !historyLoading);
+            configure.setEnabled(!busy && !building && !historyLoading);
             options.show(more, 0, more.getHeight());
         });
-        bar.add(more, BorderLayout.EAST);
+        JButton navigationButton = MarkdownContent.smallButton("History");
+        navigationButton.setToolTipText("Show or hide conversation turns and saved history");
+        navigationButton.addActionListener(event -> toggleSidebar());
+        JPanel tools = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+        tools.setOpaque(false);
+        tools.add(navigationButton);
+        tools.add(more);
+        bar.add(tools, BorderLayout.EAST);
         return bar;
+    }
+
+    private void toggleSidebar() {
+        boolean show = !sidebar.isVisible();
+        sidebar.setVisible(show);
+        conversationSplit.setDividerSize(show ? Math.max(5, UIManager.getInt("SplitPane.dividerSize")) : 0);
+        if (show) conversationSplit.setDividerLocation(150);
+        revalidate();
     }
 
     private JPanel composer() {
@@ -161,6 +456,11 @@ final class ChatView extends JPanel {
                 int lines = Math.max(input.getLineCount(), input.getText().length() / 45 + 1);
                 input.setRows(Math.min(7, Math.max(3, lines)));
                 updateControls();
+                if (!replaying && !historyLoading) {
+                    session.draft = input.getText();
+                    session.draftCode = codeContext;
+                    draftSave.restart();
+                }
                 panel.revalidate();
             }
             @Override public void insertUpdate(DocumentEvent e) { changed(); }
@@ -199,9 +499,13 @@ final class ChatView extends JPanel {
         empty.setOpaque(false);
         empty.setBorder(BorderFactory.createEmptyBorder(30, 6, 24, 6));
         empty.setAlignmentX(LEFT_ALIGNMENT);
-        JLabel title = new JLabel("Ask your course TA");
+        JLabel title = new JLabel(session.testTask ? "What would you like to test?" : "Ask your course TA");
         title.setFont(UIManager.getFont("Label.font").deriveFont(Font.BOLD, 17f));
         empty.add(title);
+        if (session.testTask) {
+            empty.add(MarkdownContent.plain("Describe a scenario before generating JUnit 5 tests. Bound source: " + session.sourcePath));
+            empty.add(new CodeBlock(session.codeSnapshot, "java", codeFont));
+        }
         empty.add(Box.createVerticalStrut(9));
         empty.add(MarkdownContent.plain("Understand Java concepts, explore course material,\nor ask about selected code."));
         for (String example : List.of("Explain dependency injection", "How do I test an empty input?")) {
@@ -256,7 +560,7 @@ final class ChatView extends JPanel {
     }
 
     private void submit() {
-        if (busy || building || input.getText().isBlank()) return;
+        if (busy || building || historyLoading || input.getText().isBlank()) return;
         String question = input.getText().trim();
         String code = codeContext;
         input.setText("");
@@ -266,17 +570,30 @@ final class ChatView extends JPanel {
 
     /** Entry used by the editor's selected-code action. */
     void askQuestion(String question, String code) {
-        if (busy || building) {
+        if (busy || building || historyLoading) {
             JOptionPane.showMessageDialog(this, "Wait for the current task to finish, then ask about this selection again.",
                     "CST3492 TA", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
+        if (session.testTask) newConversation();
         // An editor action must not consume or replace an unrelated composer draft.
         startRequest(question, code, true);
     }
 
     private void startRequest(String question, String code, boolean newQuestion) {
-        if (busy || building) return;
+        if (busy || building || historyLoading) return;
+        if (!replaying) {
+            if (newQuestion) {
+                activeTurn = new ChatHistory.Turn();
+                activeTurn.question = question;
+                activeTurn.code = code;
+                session.turns.add(activeTurn);
+            }
+            activeTurn.status = "pending";
+            activeTurn.answer = "";
+            activeTurn.sources.clear();
+            persistHistory();
+        }
         busy = true;
         requestQuestion = question;
         requestCode = code;
@@ -292,6 +609,7 @@ final class ChatView extends JPanel {
                     user.add(selected, BorderLayout.SOUTH);
                 }
                 messages.add(user);
+                turnAnchors.put(activeTurn.id, user);
             } else if (pending != null) {
                 messages.remove(pending);
             }
@@ -306,10 +624,20 @@ final class ChatView extends JPanel {
             pending.add(waiting, BorderLayout.CENTER);
             messages.add(pending);
         });
-        ask.accept(question, code);
+        if (!replaying) {
+            refreshNavigation();
+            ask.accept(question, code);
+        }
     }
 
     void answer(String text, List<KnowledgeChunk> sources, boolean grounded) {
+        if (!replaying && activeTurn != null) {
+            activeTurn.status = "answered";
+            activeTurn.answer = text;
+            activeTurn.grounded = grounded;
+            activeTurn.sources = new java.util.ArrayList<>(sources.stream().map(ChatHistory.Source::from).toList());
+            persistHistory();
+        }
         busy = false;
         updateControls();
         changeMessages(true, () -> {
@@ -320,6 +648,14 @@ final class ChatView extends JPanel {
             copy.addActionListener(event -> MarkdownContent.copy(copy, text));
             header.add(copy, BorderLayout.EAST);
             pending.add(header, BorderLayout.NORTH);
+            if (session.testTask && !activeTurn.testCode.isBlank()) {
+                JPanel body = new JPanel(new BorderLayout(0, 8));
+                body.setOpaque(false);
+                body.add(testFileActions(activeTurn), BorderLayout.NORTH);
+                body.add(new MarkdownContent(text, openLink, codeFont), BorderLayout.CENTER);
+                pending.add(body, BorderLayout.CENTER);
+                return;
+            }
 
             Map<String, KnowledgeChunk> unique = new LinkedHashMap<>();
             sources.forEach(source -> unique.putIfAbsent(source.citationLabel(), source));
@@ -376,9 +712,14 @@ final class ChatView extends JPanel {
             }
             pending.add(evidence, BorderLayout.SOUTH);
         });
+        if (!replaying) refreshNavigation();
     }
 
     void fail(String detail) {
+        if (!replaying && activeTurn != null) {
+            activeTurn.status = "failed";
+            activeTurn.answer = detail;
+        }
         busy = false;
         updateControls();
         if (input.getText().isBlank()) {
@@ -401,13 +742,15 @@ final class ChatView extends JPanel {
             String failedQuestion = requestQuestion;
             String failedCode = requestCode;
             JPanel failedCard = pending;
+            ChatHistory.Turn failedTurn = activeTurn;
             retry.addActionListener(event -> {
-                if (busy || building) return;
+                if (busy || building || historyLoading) return;
                 if (input.getText().trim().equals(failedQuestion)) {
                     input.setText("");
                     setCodeContext(null);
                 }
                 pending = failedCard;
+                activeTurn = failedTurn;
                 startRequest(failedQuestion, failedCode, false);
             });
             JButton configure = MarkdownContent.smallButton("Settings");
@@ -420,10 +763,12 @@ final class ChatView extends JPanel {
             content.add(actions, BorderLayout.SOUTH);
             pending.add(content, BorderLayout.CENTER);
         });
+        if (!replaying) { refreshNavigation(); persistHistory(); }
     }
 
     /** The user stopped the request; nothing is wrong, so the draft comes back undamaged. */
     void cancelled() {
+        if (!replaying && activeTurn != null) activeTurn.status = "cancelled";
         busy = false;
         updateControls();
         if (input.getText().isBlank()) {
@@ -437,6 +782,7 @@ final class ChatView extends JPanel {
             pending.add(MarkdownContent.plain("The request was cancelled. Your question is restored below."),
                     BorderLayout.CENTER);
         });
+        if (!replaying) { refreshNavigation(); persistHistory(); }
     }
 
     private void setCodeContext(String code) {
@@ -448,8 +794,12 @@ final class ChatView extends JPanel {
 
     private void updateControls() {
         updateIndexDisplay();
-        index.setEnabled(!busy && !building);
-        send.setEnabled(!busy && !building && !input.getText().isBlank());
+        index.setEnabled(!busy && !building && !historyLoading);
+        send.setEnabled(!busy && !building && !historyLoading && !input.getText().isBlank());
+        newConversation.setEnabled(!busy && !building && !historyLoading);
+        deleteConversation.setEnabled(!busy && !building && !historyLoading);
+        sessionList.setEnabled(!busy && !building && !historyLoading);
+        input.setEnabled(!historyLoading);
         send.setText(busy ? "Waiting…" : "Send");
         cancel.setVisible(busy || building);
         cancel.setEnabled(busy || building);

@@ -279,6 +279,27 @@ public final class TaProjectService implements Disposable {
                     new Message("user", PromptBuilder.userPrompt(question, codeContext, List.of())));
         }
         String raw = client.complete(messages, settings.temperature, 1200);
+        boolean empty = raw == null || raw.isBlank();
+        boolean citationRetry = !empty && grounded && CitationVerifier.needsCitationRetry(raw, retrieved);
+        if (empty || citationRetry) {
+            // One controlled retry. A blank reply is re-asked without an empty assistant turn;
+            // a grounded reply without a verifiable citation is re-asked with its own text.
+            List<Message> retry = new ArrayList<>();
+            retry.add(messages.get(0));
+            retry.add(messages.get(1));
+            if (empty) {
+                retry.add(new Message("user", PromptBuilder.emptyAnswerRetryHint()));
+            } else {
+                retry.add(new Message("assistant", raw));
+                retry.add(new Message("user", PromptBuilder.citationRetryHint()));
+            }
+            raw = client.complete(retry, settings.temperature, 1200);
+        }
+        if (raw == null || raw.isBlank()) {
+            // An HTTP 200 response with no content must not become an empty answer card.
+            throw new IOException("The chat model returned an empty reply. Check the chat model "
+                    + "and chat API key in Settings > Tools > CST3492 TA.");
+        }
         String verified = CitationVerifier.verify(raw, retrieved);
         return new Answer(verified, retrieved, grounded);
     }

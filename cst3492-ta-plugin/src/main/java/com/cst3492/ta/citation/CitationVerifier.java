@@ -48,10 +48,24 @@ public final class CitationVerifier {
         // Re-run the raw sweep so a truncated, unterminated token cannot reach the user.
         String result = stripTokens(sb.toString());
         if (!citationSurvived) {
-            result = result + "\n\n(Note: no verifiable course citation survived verification; "
+            result = result + "\n\n(Unverified: no verifiable course citation survived verification; "
                     + "inspect the Sources list.)";
         }
         return result;
+    }
+
+    /**
+     * True when excerpts were retrieved but the reply is empty or contains no citation that can be
+     * verified against them; such a reply is retried once before being shown to the user.
+     */
+    public static boolean needsCitationRetry(String answer, List<KnowledgeChunk> retrieved) {
+        if (retrieved == null || retrieved.isEmpty()) return false;
+        if (answer == null || answer.isBlank()) return true;
+        Matcher matcher = CITE.matcher(answer);
+        while (matcher.find()) {
+            if (sourceLabel(matcher.group(1), retrieved) != null) return false;
+        }
+        return true;
     }
 
     /** Resolves only a document/page pair supplied in this request, never a model-invented source. */

@@ -14,6 +14,7 @@ public final class TaToolWindowFactory implements ToolWindowFactory {
     public void createToolWindowContent(@NotNull Project project, @NotNull ToolWindow toolWindow) {
         ChatPanel panel = new ChatPanel(project);
         Content content = ContentFactory.getInstance().createContent(panel, "", false);
+        content.setDisposer(panel);
         toolWindow.getContentManager().addContent(content);
     }
 }

@@ -181,4 +181,64 @@ class MarkdownContentTest {
             assertTrue(code.equals(clipboard), "Code clipboard contents must match the source, without Markdown wrappers");
         });
     }
+
+    @Test void nestedCodeInsideListsAndBlockQuotesUsesRealCodeBlocks() throws Exception {
+        javax.swing.SwingUtilities.invokeAndWait(() -> {
+            String markdown = "- Prepare the bean:\n\n  ```java\n  int port = 8080;\n  ```\n\n"
+                    + "> Remember:\n>\n> ```sql\n> SELECT 1;\n> ```\n";
+            var content = new MarkdownContent(markdown, ignored -> { },
+                    new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 14));
+            var codes = new java.util.ArrayList<CodeBlock>();
+            for (var component : content.getComponents()) {
+                if (component instanceof CodeBlock block) codes.add(block);
+            }
+            assertEquals(2, codes.size(), "Both nested code blocks must use the real CodeBlock widget");
+            assertEquals("int port = 8080;\n", codeText(codes.get(0)));
+            assertEquals("SELECT 1;\n", codeText(codes.get(1)));
+            for (var component : content.getComponents()) {
+                if (component instanceof javax.swing.JEditorPane pane) {
+                    String text = assertDoesNotThrow(() ->
+                            pane.getDocument().getText(0, pane.getDocument().getLength()));
+                    assertFalse(text.contains("int port"));
+                    assertFalse(text.contains("SELECT 1"));
+                }
+            }
+        });
+    }
+
+    @Test void orderedItemThatStartsWithCodeKeepsItsMarkerAndContinuation() throws Exception {
+        javax.swing.SwingUtilities.invokeAndWait(() -> {
+            String markdown = "1.\n\n   ```java\n   int port = 8080;\n   ```\n\n"
+                    + "   Trailing note.\n\n2. Second step.\n";
+            var content = new MarkdownContent(markdown, ignored -> { },
+                    new java.awt.Font(java.awt.Font.MONOSPACED, java.awt.Font.PLAIN, 14));
+            assertEquals(3, content.getComponentCount());
+            assertEquals("int port = 8080;\n", codeText((CodeBlock) content.getComponent(1)));
+            var marker = (javax.swing.JEditorPane) content.getComponent(0);
+            assertEquals(1, listViews(marker), "The step number must survive a leading code block");
+            var continuation = (javax.swing.JEditorPane) content.getComponent(2);
+            String text = assertDoesNotThrow(() ->
+                    continuation.getDocument().getText(0, continuation.getDocument().getLength()));
+            assertTrue(text.contains("Trailing note."));
+            assertTrue(text.contains("Second step."));
+        });
+    }
+
+    private static int listViews(javax.swing.JEditorPane pane) {
+        var count = new java.util.concurrent.atomic.AtomicInteger();
+        countViews(pane.getUI().getRootView(pane), count);
+        return count.get();
+    }
+
+    private static void countViews(javax.swing.text.View view,
+                                   java.util.concurrent.atomic.AtomicInteger count) {
+        if (view instanceof javax.swing.text.html.ListView) count.incrementAndGet();
+        for (int i = 0; i < view.getViewCount(); i++) countViews(view.getView(i), count);
+    }
+
+    private static String codeText(CodeBlock block) {
+        var layout = (java.awt.BorderLayout) block.getLayout();
+        var scroll = (javax.swing.JScrollPane) layout.getLayoutComponent(java.awt.BorderLayout.CENTER);
+        return ((org.fife.ui.rsyntaxtextarea.RSyntaxTextArea) scroll.getViewport().getView()).getText();
+    }
 }
