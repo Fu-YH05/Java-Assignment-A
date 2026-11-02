@@ -43,9 +43,9 @@ generated index files. Endpoint/model changes require rebuilding the index.
 
 ## Verification
 
-Both suites run offline. The JUnit `test` task runs 71 cases covering indexing, citations,
+Both suites run offline. The JUnit `test` task runs 73 cases covering indexing, citations,
 test-source parsing, complete diff partitioning, cancellation and the Swing chat view. The focused
-`gradlew.bat chatUiTest` task runs the 33 chat view, history navigation, Markdown, clipboard and citation cases without
+`gradlew.bat chatUiTest` task runs the 34 chat view, history navigation, Markdown, clipboard and citation cases without
 the IntelliJ test bootstrap, so UI regressions can be checked in seconds. Tests use generated PDFs
 and deterministic embeddings and need no live credentials.
 
