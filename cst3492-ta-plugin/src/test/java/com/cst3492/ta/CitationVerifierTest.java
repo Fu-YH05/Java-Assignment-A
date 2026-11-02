@@ -63,4 +63,24 @@ class CitationVerifierTest {
         String input = PromptBuilder.GENERAL_DISCLAIMER + "\n\nBeans live in the container.";
         assertEquals(input, CitationVerifier.verify(input, List.of()));
     }
+
+    @Test
+    void filenamesWithSpacesParenthesesAndChineseAreVerified() {
+        for (String name : List.of("Chapter_01-new (1)", "第1章 软件工程", "Lecture #1")) {
+            String out = CitationVerifier.verify("Claim {{cite:" + name + "#6}}.",
+                    List.of(chunk(name, name + ".pdf", 6, 6)));
+            assertTrue(out.contains("[" + name + ".pdf, p.6]"));
+            assertFalse(out.contains("{{cite:"));
+        }
+    }
+
+    @Test
+    void malformedAndOverflowingCitationsCannotLeakOrCrash() {
+        String input = "Claim {{cite:missing#999999999999999}} {{cite:broken#abc}}\n"
+                + "Incomplete {{cite:unclosed#1";
+        String out = CitationVerifier.verify(input, List.of(chunk("lec", "Lecture.pdf", 1, 2)));
+        assertFalse(out.contains("{{cite:"));
+        assertTrue(out.contains("no verifiable course citation"));
+        assertTrue(CitationVerifier.verify(input, List.of()).startsWith(PromptBuilder.GENERAL_DISCLAIMER));
+    }
 }

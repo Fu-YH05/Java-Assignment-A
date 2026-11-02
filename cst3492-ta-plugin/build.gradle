@@ -24,8 +24,9 @@ dependencies {
     }
     implementation 'org.apache.pdfbox:pdfbox:2.0.31'
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.18.3'
+    implementation 'org.commonmark:commonmark:0.24.0'
     testImplementation 'org.junit.jupiter:junit-jupiter:5.10.2'
-    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.junit.platform:junit-platform-launcher'
 }
 
 intellijPlatform {
@@ -41,3 +42,26 @@ tasks.withType(Test).configureEach { useJUnitPlatform() }
 
 buildSearchableOptions { enabled = false }
 jarSearchableOptions { enabled = false }
+
+// These checks exercise the Swing view and citation renderer without booting the IDE test JVM.
+tasks.register('chatUiTest', JavaExec) {
+    description = 'Offline chat UI and citation regression checks.'
+    group = 'verification'
+    dependsOn testClasses
+    classpath = files(sourceSets.main.output, sourceSets.test.output,
+            configurations.testRuntimeClasspath.filter {
+                it.name.startsWith('commonmark-') || it.name.startsWith('junit-')
+                        || it.name.startsWith('opentest4j-') || it.name.startsWith('apiguardian-')
+            })
+    mainClass = 'com.cst3492.ta.ui.ChatUiChecks'
+}
+
+tasks.register('previewChatUi', JavaExec) {
+    description = 'Open the actual chat component with local fixtures; no API keys or network calls.'
+    group = 'application'
+    dependsOn testClasses
+    classpath = files(sourceSets.main.output, sourceSets.test.output,
+            configurations.testRuntimeClasspath.filter { it.name.startsWith('commonmark-') })
+    mainClass = 'com.cst3492.ta.ui.ChatUiPreview'
+    jvmArgs '-Dsun.java2d.d3d=false'
+}

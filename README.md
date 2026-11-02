@@ -43,7 +43,14 @@ generated index files. Endpoint/model changes require rebuilding the index.
 
 ## Verification
 
-The current implementation has 30 automated tests, which passed together with `buildPlugin`
-during local verification. Tests use generated PDFs and deterministic embeddings and need no
-live credentials. Real provider availability and answer quality require the manual checks in
-the plugin README.
+The repository contains 43 test cases. The focused `gradlew.bat chatUiTest` task runs 18
+offline chat UI, Markdown, clipboard and citation checks without the IntelliJ test bootstrap.
+These checks passed in three consecutive runs during the UI refresh. Index tests use generated
+PDFs and deterministic embeddings and need no live credentials. The full `test` task remains
+separate; its IDE test JVM failed to start in the current Windows environment and is not
+reported as passing. Real provider availability and answer quality require the manual checks
+in the plugin README.
+
+Use `gradlew.bat previewChatUi` to inspect the production chat component with controlled local
+fixtures, without API keys or network calls. The preview controls and fixture data are test
+sources and are not packaged in the plugin. The real IDE uses its own theme and editor font.

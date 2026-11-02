@@ -14,7 +14,8 @@ import java.util.regex.Pattern;
  */
 public final class CitationVerifier {
 
-    private static final Pattern CITE = Pattern.compile("\\{\\{cite:([A-Za-z0-9_\\-]+)#(\\d+)\\}\\}");
+    private static final Pattern CITE = Pattern.compile("\\{\\{cite:([^{}\\r\\n]+)#(\\d+)\\}\\}");
+    private static final Pattern RAW_CITE = Pattern.compile("\\{\\{cite:[^{}\\r\\n]*(?:\\}\\}|(?=\\r?\\n|$))");
 
     private CitationVerifier() {
     }
@@ -35,7 +36,12 @@ public final class CitationVerifier {
         int last = 0;
         while (matcher.find()) {
             String docId = matcher.group(1);
-            int page = Integer.parseInt(matcher.group(2));
+            int page;
+            try {
+                page = Integer.parseInt(matcher.group(2));
+            } catch (NumberFormatException invalidPage) {
+                page = -1;
+            }
             sb.append(answer, last, matcher.end() - matcher.group(0).length());
             KnowledgeChunk match = find(retrieved, docId, page);
             if (match != null) {
@@ -45,7 +51,7 @@ public final class CitationVerifier {
             last = matcher.end();
         }
         sb.append(answer.substring(last));
-        String result = sb.toString().replaceAll("  +", " ");
+        String result = stripTokens(sb.toString());
         if (!citationSurvived) {
             result = result + "\n\n(Note: no verifiable course citation survived verification; "
                     + "inspect the Sources list.)";
@@ -63,7 +69,7 @@ public final class CitationVerifier {
     }
 
     private static String stripTokens(String answer) {
-        return CITE.matcher(answer).replaceAll("").replaceAll("  +", " ").trim();
+        return RAW_CITE.matcher(answer).replaceAll("").replaceAll("  +", " ").trim();
     }
 
     private static String ensureDisclaimer(String answer) {

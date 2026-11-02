@@ -21,6 +21,24 @@ Test Connection sends small real requests to both configured services, using ent
 saved keys. Provider usage charges may apply. It checks actual responses rather than accepting
 HTTP error statuses as successful connections.
 
+## Chat window
+
+The chat window separates questions, TA answers and request errors. Answers render Markdown
+headings, lists and inline code; code blocks have their own horizontal scrollbar and Copy code
+action. Copy answer preserves the original answer and its document/page references. Expand
+Course sources to inspect the retrieved documents and pages, or click a numbered reference.
+
+The composer accepts multiple lines: Enter sends and Shift+Enter inserts a new line. A failed
+request keeps the question and selected-code context for retry; a new draft is preserved if
+you already started typing one. While a request is pending, repeated submissions are disabled.
+When reading an earlier answer, new responses preserve the scroll position and a button offers
+to return to the latest response. The options menu opens Settings or clears the visible
+conversation; clearing does not create persistent sessions or add multi-turn model memory.
+
+For offline UI checks run `gradlew.bat chatUiTest`. For an interactive view of the same Swing
+component with local callbacks, run `gradlew.bat previewChatUi`. The preview's States, Theme,
+Width and Local reply menus are verification controls, not part of the installed plugin.
+
 ## Build and verification
 
 Requires JDK 21 and Gradle 8.14. Run `gradle test buildPlugin` from this folder. The target IDE
