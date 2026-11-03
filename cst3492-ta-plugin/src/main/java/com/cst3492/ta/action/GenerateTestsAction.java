@@ -11,7 +11,7 @@ import org.jetbrains.annotations.NotNull;
 
 /** Capture context now; the required natural-language scenario is entered in a new test conversation. */
 public final class GenerateTestsAction extends AnAction {
-    @Override public @NotNull ActionUpdateThread getActionUpdateThread() { return ActionUpdateThread.EDT; }
+    @Override public @NotNull ActionUpdateThread getActionUpdateThread() { return ActionUpdateThread.BGT; }
     @Override public void update(@NotNull AnActionEvent event) {
         event.getPresentation().setEnabledAndVisible(event.getProject() != null
                 && event.getData(CommonDataKeys.EDITOR) != null

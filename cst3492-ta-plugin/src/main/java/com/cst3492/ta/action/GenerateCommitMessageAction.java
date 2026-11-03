@@ -23,7 +23,9 @@ import java.util.List;
  * only staged changes and never commits automatically.
  */
 public final class GenerateCommitMessageAction extends AnAction {
-
+    @Override public @NotNull com.intellij.openapi.actionSystem.ActionUpdateThread getActionUpdateThread() {
+        return com.intellij.openapi.actionSystem.ActionUpdateThread.BGT;
+    }
 
     @Override
     public void update(@NotNull AnActionEvent e) {

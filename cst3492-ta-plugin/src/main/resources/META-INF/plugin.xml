@@ -12,6 +12,8 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.json</depends>
     <depends>com.intellij.modules.java</depends>
+    <!-- Git 插件提供顶部 Git.MainMenu 组；先声明依赖，动作才能注册进该菜单。 -->
+    <depends>Git4Idea</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <toolWindow id="CST3492 TA" anchor="right"
@@ -44,6 +46,8 @@
                 class="com.cst3492.ta.action.GenerateCommitMessageAction"
                 text="Generate Commit Message from Staged Changes"
                 description="Draft a conventional commit message from the staged diff">
+            <!-- 2024.2 新 UI 的顶部菜单由 Git.MainMenu 提供；Vcs.MainMenu 仅在旧界面下存在。 -->
+            <add-to-group group-id="Git.MainMenu" anchor="last"/>
             <add-to-group group-id="Vcs.MainMenu" anchor="last"/>
         </action>
     </actions>

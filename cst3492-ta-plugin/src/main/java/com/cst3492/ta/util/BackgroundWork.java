@@ -1,10 +1,11 @@
 package com.cst3492.ta.util;
 
+import com.intellij.openapi.application.ApplicationManager;
+import com.intellij.openapi.application.ModalityState;
 import com.intellij.openapi.progress.*;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.util.concurrency.AppExecutorUtil;
-import javax.swing.SwingUtilities;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -48,9 +49,11 @@ public final class BackgroundWork {
                     T result = TaskAwaiter.await(future,
                             () -> project.isDisposed() || handle.isCancelled() || indicator.isCanceled());
                     T value = result;
-                    SwingUtilities.invokeLater(() -> {
+                    // SwingUtilities.invokeLater runs with "any" modality, which is write-unsafe;
+                    // a success callback may open a modal dialog.
+                    ApplicationManager.getApplication().invokeLater(() -> {
                         if (!project.isDisposed() && !handle.isCancelled()) success.accept(value);
-                    });
+                    }, ModalityState.defaultModalityState());
                 } catch (CancellationException ex) {
                     handle.cancel();
                 } catch (InterruptedException ex) {
@@ -62,13 +65,15 @@ public final class BackgroundWork {
                             || cause instanceof InterruptedException || indicator.isCanceled()) {
                         handle.cancel();
                     } else {
-                        SwingUtilities.invokeLater(() -> {
+                        ApplicationManager.getApplication().invokeLater(() -> {
                             if (!project.isDisposed() && !handle.isCancelled()) failure.accept(
                                     cause.getMessage() == null ? cause.toString() : cause.getMessage());
-                        });
+                        }, ModalityState.defaultModalityState());
                     }
                 } finally {
-                    SwingUtilities.invokeLater(() -> { if (!project.isDisposed()) finished.run(); });
+                    ApplicationManager.getApplication().invokeLater(
+                            () -> { if (!project.isDisposed()) finished.run(); },
+                            ModalityState.defaultModalityState());
                 }
             }
         }.queue();

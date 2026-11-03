@@ -7,6 +7,12 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.UnsupportedFlavorException;
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -450,6 +456,65 @@ final class ChatView extends JPanel {
         input.getInputMap().put(KeyStroke.getKeyStroke("shift ENTER"), "insert-break");
         input.getActionMap().put("send-message", new AbstractAction() {
             @Override public void actionPerformed(java.awt.event.ActionEvent event) { submit(); }
+        });
+        input.setTransferHandler(new TransferHandler() {
+            @Override public boolean canImport(TransferSupport support) {
+                return support.isDataFlavorSupported(DataFlavor.javaFileListFlavor);
+            }
+            @Override public boolean importData(TransferSupport support) {
+                try {
+                    Object raw = support.getTransferable().getTransferData(DataFlavor.javaFileListFlavor);
+                    if (!(raw instanceof java.util.List<?> files) || files.isEmpty()) return false;
+                    if (files.size() > 1) {
+                        JOptionPane.showMessageDialog(ChatView.this,
+                                "Please drag one file at a time.", "Drop file",
+                                JOptionPane.INFORMATION_MESSAGE);
+                        return false;
+                    }
+                    Path path = ((java.io.File) files.get(0)).toPath();
+                    String name = path.getFileName().toString();
+                    String lower = name.toLowerCase();
+                    if (lower.endsWith(".pdf")) {
+                        JOptionPane.showMessageDialog(ChatView.this,
+                                "PDFs cannot be dropped directly into the chat.\n"
+                                + "Please put \"" + name + "\" into your Materials folder,\n"
+                                + "then click \"Build index\".",
+                                "Drop file", JOptionPane.INFORMATION_MESSAGE);
+                        return false;
+                    }
+                    if (isImage(lower)) {
+                        JOptionPane.showMessageDialog(ChatView.this,
+                                "Image OCR is not supported.\n"
+                                + "Please describe the image in your own words, or paste text.",
+                                "Drop file", JOptionPane.INFORMATION_MESSAGE);
+                        return false;
+                    }
+                    if (!isText(lower)) {
+                        JOptionPane.showMessageDialog(ChatView.this,
+                                "Only text files (.txt, .md, source code, …) can be dropped here.\n"
+                                + "\"" + name + "\" is not recognized as text.",
+                                "Drop file", JOptionPane.INFORMATION_MESSAGE);
+                        return false;
+                    }
+                    long size = Files.size(path);
+                    if (size > 1_000_000L) {
+                        JOptionPane.showMessageDialog(ChatView.this,
+                                "\"" + name + "\" is over 1 MB.\n"
+                                + "Consider pasting only the relevant section.",
+                                "Drop file", JOptionPane.INFORMATION_MESSAGE);
+                    }
+                    String content = Files.readString(path, StandardCharsets.UTF_8);
+                    String separator = input.getText().isBlank() ? "" : "\n\n─── " + name + " ───\n";
+                    input.append(separator + content);
+                    input.setCaretPosition(input.getText().length());
+                    return true;
+                } catch (UnsupportedFlavorException | IOException ex) {
+                    JOptionPane.showMessageDialog(ChatView.this,
+                            "Could not read the dropped file: " + ex.getMessage(),
+                            "Drop file", JOptionPane.ERROR_MESSAGE);
+                    return false;
+                }
+            }
         });
         input.getDocument().addDocumentListener(new DocumentListener() {
             private void changed() {
@@ -904,6 +969,22 @@ final class ChatView extends JPanel {
                 copy.dispose();
             }
         };
+    }
+
+    private static boolean isImage(String lowerName) {
+        return lowerName.endsWith(".png") || lowerName.endsWith(".jpg") || lowerName.endsWith(".jpeg")
+                || lowerName.endsWith(".gif") || lowerName.endsWith(".bmp")
+                || lowerName.endsWith(".webp") || lowerName.endsWith(".svg");
+    }
+
+    private static boolean isText(String lowerName) {
+        String[] textExt = {".txt", ".md", ".markdown", ".java", ".kt", ".kts", ".groovy", ".gradle",
+                ".py", ".js", ".ts", ".jsx", ".tsx", ".json", ".xml", ".html", ".htm", ".css", ".scss",
+                ".sql", ".csv", ".log", ".sh", ".bat", ".cmd", ".ps1", ".yml", ".yaml", ".toml",
+                ".c", ".h", ".cpp", ".hpp", ".cs", ".go", ".rs", ".rb", ".php", ".swift", ".r",
+                ".scala", ".properties", ".conf", ".ini", ".env", ".tf", ".proto"};
+        for (String ext : textExt) if (lowerName.endsWith(ext)) return true;
+        return false;
     }
 
     private static final class MessageList extends JPanel implements Scrollable {
